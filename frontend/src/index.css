@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Styles */
+* {
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #404145;
+  background-color: #ffffff;
+}
+
+/* Fiverr-style Component Classes */
+@layer components {
+  /* Button Styles */
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 hover:bg-accent hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-primary border-2 border-primary px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 hover:bg-primary hover:text-white hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
+  }
+
+  .btn-outline {
+    @apply bg-transparent text-gray-dark border border-gray-border px-6 py-3 rounded-lg font-medium text-base transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-gray-dark px-4 py-2 rounded-lg font-medium text-base transition-all duration-200 hover:bg-gray-lighter focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-white rounded-xl border border-gray-border p-6 transition-all duration-200 hover:shadow-card-hover;
+  }
+
+  .card-compact {
+    @apply bg-white rounded-lg border border-gray-border p-4 transition-all duration-200 hover:shadow-card;
+  }
+
+  /* Input Styles */
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-border rounded-lg text-base text-gray-dark placeholder-gray-light focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200;
+  }
+
+  .input-error {
+    @apply border-error focus:ring-error focus:border-error;
+  }
+
+  /* Typography */
+  .heading-1 {
+    @apply text-4xl md:text-5xl font-bold text-gray-dark leading-tight;
+  }
+
+  .heading-2 {
+    @apply text-3xl md:text-4xl font-bold text-gray-dark leading-tight;
+  }
+
+  .heading-3 {
+    @apply text-2xl md:text-3xl font-bold text-gray-dark leading-tight;
+  }
+
+  .heading-4 {
+    @apply text-xl md:text-2xl font-semibold text-gray-dark leading-tight;
+  }
+
+  .body-large {
+    @apply text-lg text-gray-medium leading-relaxed;
+  }
+
+  .body-regular {
+    @apply text-base text-gray-medium leading-relaxed;
+  }
+
+  .body-small {
+    @apply text-sm text-gray-medium leading-relaxed;
+  }
+
+  /* Navigation */
+  .nav-link {
+    @apply text-gray-dark font-medium text-base transition-colors duration-200 hover:text-primary;
+  }
+
+  .nav-link-active {
+    @apply text-primary font-semibold;
+  }
+}
+
+/* Line clamp utilities */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
