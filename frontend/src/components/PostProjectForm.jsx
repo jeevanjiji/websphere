@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 
+
 const PostProjectForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
     title: '',
@@ -54,9 +55,18 @@ const PostProjectForm = ({ onSuccess }) => {
         formDataToSend.append('attachments', file);
       });
 
+      // Get the JWT token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to post a project');
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/projects', {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formDataToSend
       });
 

@@ -391,11 +391,127 @@ The WebSphere Security Team
   `.trim();
 }
 
+/**
+ * Generate deactivation email HTML template
+ * @param {Object} user - User object
+ * @param {string} reason - Deactivation reason
+ * @param {Object} ratingInfo - Optional rating and project info
+ * @returns {string} - HTML email template
+ */
+function getDeactivationEmailTemplate(user, reason, ratingInfo = null) {
+  // Generate rating-specific content if provided
+  let ratingContent = '';
+  if (ratingInfo) {
+    ratingContent = `
+    <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <h3 style="color: #856404; margin: 0 0 8px 0;">⭐ Performance Review</h3>
+      <p style="margin: 0; color: #856404;">
+        <strong>Current Rating:</strong> ${ratingInfo.currentRating.toFixed(1)}/5.0 stars (${ratingInfo.ratingCount} reviews)<br>
+        <strong>Completed Projects:</strong> ${ratingInfo.completedProjects}<br>
+        <strong>Minimum Required:</strong> 2.5/5.0 stars to maintain account
+      </p>
+    </div>`;
+  }
+
+  const content = `
+    <h2>🚫 Freelancer Account Deactivated</h2>
+    <p>Hi <strong>${user.fullName}</strong>,</p>
+
+    <p>We're writing to inform you that your WebSphere freelancer account has been deactivated by our administration team.</p>
+
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <h3 style="color: #dc2626; margin: 0 0 8px 0;">Account Status: Deactivated</h3>
+      <p style="margin: 0; color: #7f1d1d;">
+        <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
+        <strong>Reason:</strong> ${reason || 'Administrative decision'}
+      </p>
+    </div>
+
+    ${ratingContent}
+
+    <p><strong>What this means:</strong></p>
+    <ul>
+      <li>You can no longer log into your WebSphere account</li>
+      <li>Your profile is no longer visible to clients</li>
+      <li>You cannot bid on new projects or receive project invitations</li>
+      <li>Any ongoing projects may be affected</li>
+    </ul>
+
+    ${ratingInfo ? `
+    <p><strong>About our Quality Standards:</strong></p>
+    <p>WebSphere maintains high-quality standards to ensure the best experience for our clients. Freelancers are expected to maintain a minimum rating of 2.5 stars across their completed projects. This helps us provide reliable and professional services to our client base.</p>
+    ` : ''}
+
+    <p><strong>If you believe this is a mistake:</strong></p>
+    <p>Please contact our support team at <a href="mailto:support@websphere.com" style="color: #667eea;">support@websphere.com</a> with your account details and any relevant information. Include details about your recent projects and client feedback if you believe your rating should be higher.</p>
+
+    <p>We appreciate your understanding and apologize for any inconvenience this may cause.</p>
+
+    <p>Best regards,<br>The WebSphere Administration Team</p>
+  `;
+
+  return getBaseTemplate('Freelancer Account Deactivated - WebSphere', content);
+}
+
+/**
+ * Generate deactivation email text template
+ * @param {Object} user - User object
+ * @param {string} reason - Deactivation reason
+ * @param {Object} ratingInfo - Optional rating and project info
+ * @returns {string} - Plain text email template
+ */
+function getDeactivationEmailTextTemplate(user, reason, ratingInfo = null) {
+  let ratingContent = '';
+  if (ratingInfo) {
+    ratingContent = `
+PERFORMANCE REVIEW:
+- Current Rating: ${ratingInfo.currentRating.toFixed(1)}/5.0 stars (${ratingInfo.ratingCount} reviews)
+- Completed Projects: ${ratingInfo.completedProjects}
+- Minimum Required: 2.5/5.0 stars to maintain account
+
+ABOUT OUR QUALITY STANDARDS:
+WebSphere maintains high-quality standards to ensure the best experience for our clients. Freelancers are expected to maintain a minimum rating of 2.5 stars across their completed projects. This helps us provide reliable and professional services to our client base.
+`;
+  }
+
+  return `
+🚫 FREELANCER ACCOUNT DEACTIVATED - WEBSPHERE
+
+Hi ${user.fullName},
+
+We're writing to inform you that your WebSphere freelancer account has been deactivated by our administration team.
+
+ACCOUNT STATUS: DEACTIVATED
+Date: ${new Date().toLocaleDateString()}
+Reason: ${reason || 'Administrative decision'}
+${ratingContent}
+WHAT THIS MEANS:
+- You can no longer log into your WebSphere account
+- Your profile is no longer visible to clients
+- You cannot bid on new projects or receive project invitations
+- Any ongoing projects may be affected
+
+IF YOU BELIEVE THIS IS A MISTAKE:
+Please contact our support team at support@websphere.com with your account details and any relevant information.${ratingInfo ? ' Include details about your recent projects and client feedback if you believe your rating should be higher.' : ''}
+
+We appreciate your understanding and apologize for any inconvenience this may cause.
+
+Best regards,
+The WebSphere Administration Team
+
+---
+This is an automated message from WebSphere.
+If you have questions, contact us at support@websphere.com
+  `.trim();
+}
+
 module.exports = {
   generateVerificationEmailHTML,
   generateVerificationEmailText,
   generateWelcomeEmailHTML,
   generateWelcomeEmailText,
   generatePasswordResetEmailHTML,
-  generatePasswordResetEmailText
+  generatePasswordResetEmailText,
+  getDeactivationEmailTemplate,
+  getDeactivationEmailTextTemplate
 };

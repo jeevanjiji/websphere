@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 import UserManagement from '../components/UserManagement';
 
 const AdminDashboard = () => {
@@ -10,6 +11,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -85,11 +87,19 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.clear();
-      toast.success('Logged out successfully');
-      navigate('/');
+      try {
+        await logout(); // Use the proper logout function from AuthContext
+        toast.success('Logged out successfully');
+        navigate('/login'); // Redirect to login page instead of landing page
+      } catch (error) {
+        console.error('Logout error:', error);
+        // Fallback: still clear localStorage and redirect
+        localStorage.clear();
+        toast.success('Logged out successfully');
+        navigate('/login');
+      }
     }
   };
 

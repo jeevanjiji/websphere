@@ -6,6 +6,7 @@ import ProjectCards from '../components/ProjectCards';
 import HowItWorks from '../components/HowItWorks';
 import Footer from '../components/Footer';
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 const TestimonialsSection = () => {
   const testimonials = [
@@ -100,6 +101,7 @@ const TestimonialsSection = () => {
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
 
   // Check if user is logged in and redirect accordingly
   useEffect(() => {
@@ -132,7 +134,7 @@ const LandingPage = () => {
 
   return (
     <div className="landing-page">
-      <Navbar />
+      <Navbar key={`navbar-${user?.id || 'anonymous'}-${isAuthenticated}`} />
       <Hero onTabClick={handleTabClick} />
       <ProjectCards onCardClick={handleTabClick} />
       <TestimonialsSection /> {/* Add this new section */}

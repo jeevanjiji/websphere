@@ -17,9 +17,9 @@ const auth = (allowedRoles = []) => (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Unauthorized: No token provided' 
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: No token provided'
       });
     }
 
@@ -27,23 +27,23 @@ const auth = (allowedRoles = []) => (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Unauthorized: Token missing' 
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Token missing'
       });
     }
 
     // Verify JWT token
     const decoded = jwt.verify(
-      token, 
+      token,
       process.env.JWT_SECRET || 'your_jwt_secret_key'
     );
 
     // Check if user has required role (if roles are specified)
     if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {
-      return res.status(403).json({ 
-        success: false, 
-        message: `Forbidden: Access denied. Required role: ${allowedRoles.join(' or ')}` 
+      return res.status(403).json({
+        success: false,
+        message: `Forbidden: Access denied. Required role: ${allowedRoles.join(' or ')}`
       });
     }
 

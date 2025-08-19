@@ -3,14 +3,30 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GlobeAltIcon, Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
+import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [user, setUser] = useState(null);
 
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log('Navbar: Authentication state changed', { 
+      user: user ? { id: user.id, email: user.email, role: user.role } : null, 
+      isAuthenticated 
+    });
+  }, [user, isAuthenticated]);
+
+  useEffect(() => {
+    console.log('Navbar: Component mounted');
+    return () => {
+      console.log('Navbar: Component unmounted');
+    };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,26 +36,19 @@ const Navbar = () => {
     window.addEventListener('scroll', handleScroll);
     handleScroll();
 
-    // Safely parse user data
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      }
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      setUser(null);
-    }
-
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setDropdownOpen(false);
-    localStorage.clear();
-    setUser(null);
-    navigate('/');
+    try {
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still navigate to home even if logout API fails
+      navigate('/');
+    }
   };
 
   // Get dashboard link based on user role
@@ -54,26 +63,134 @@ const Navbar = () => {
   // Safe function to get user initials
   const getUserInitial = () => {
     if (!user) return 'U';
-    
-    // Try to get first name initial
+
+    // Try to get first name initial from fullName
+    if (user.fullName && typeof user.fullName === 'string') {
+      return user.fullName.charAt(0).toUpperCase();
+    }
+
+    // Try to get first name initial from profile
     if (user.profile?.firstName && typeof user.profile.firstName === 'string') {
       return user.profile.firstName.charAt(0).toUpperCase();
     }
-    
+
+    // Fall back to email initial
+    if (user.email && typeof user.email === 'string') {
+      return user.email.charAt(0).toUpperCase();
+    }
+
     // Fall back to username initial
     if (user.username && typeof user.username === 'string') {
       return user.username.charAt(0).toUpperCase();
     }
-    
+
     // Ultimate fallback
     return 'U';
   };
 
-  const navLinks = [
-    { name: 'Find Talent', href: '#talent' },
-    { name: 'Find Work', href: '#work' },
-    { name: 'Why WebSphere?', href: '#why' },
-  ];
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+
+    // Try fullName first
+    if (user.fullName && typeof user.fullName === 'string') {
+      return user.fullName;
+    }
+
+    // Try profile firstName + lastName
+    if (user.profile?.firstName) {
+      const lastName = user.profile?.lastName || '';
+      return `${user.profile.firstName} ${lastName}`.trim();
+    }
+
+    // Fall back to email (first part)
+    if (user.email && typeof user.email === 'string') {
+      return user.email.split('@')[0];
+    }
+
+    // Fall back to username
+    if (user.username && typeof user.username === 'string') {
+      return user.username;
+    }
+
+    return 'User';
+  };
+
+  // Get user profile picture
+  const getUserProfilePicture = () => {
+    if (!user) return null;
+
+    // Try profilePicture field
+    if (user.profilePicture && typeof user.profilePicture === 'string') {
+      return user.profilePicture;
+    }
+
+    // Try profile.profilePicture
+    if (user.profile?.profilePicture && typeof user.profile.profilePicture === 'string') {
+      return user.profile.profilePicture;
+    }
+
+    return null;
+  };
+
+  // Handle navigation clicks based on user authentication and role
+  const handleNavClick = (linkType) => {
+    if (!user) {
+      // Not logged in, redirect to login
+      navigate('/login');
+      return;
+    }
+
+    // Handle based on user role and link type
+    if (linkType === 'talent') {
+      // Find Talent - redirect to client dashboard or appropriate page
+      if (user.role === 'client') {
+        navigate('/client');
+      } else {
+        navigate('/login'); // Other roles shouldn't access this
+      }
+    } else if (linkType === 'work') {
+      // Find Work - redirect to freelancer dashboard or appropriate page
+      if (user.role === 'freelancer') {
+        navigate('/freelancer');
+      } else {
+        navigate('/login'); // Other roles shouldn't access this
+      }
+    }
+  };
+
+  // Get navigation links based on user role
+  const getNavLinks = () => {
+    const baseLinks = [
+      { name: 'Why WebSphere?', href: '#why', type: 'static' },
+    ];
+
+    if (!user) {
+      // Not logged in - show both options
+      return [
+        { name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' },
+        { name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' },
+        ...baseLinks
+      ];
+    } else if (user.role === 'client') {
+      // Client logged in - show only Find Talent
+      return [
+        { name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' },
+        ...baseLinks
+      ];
+    } else if (user.role === 'freelancer') {
+      // Freelancer logged in - show only Find Work
+      return [
+        { name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' },
+        ...baseLinks
+      ];
+    } else {
+      // Admin or other roles - show basic links
+      return baseLinks;
+    }
+  };
+
+  const navLinks = getNavLinks();
 
   return (
     <motion.nav
@@ -93,18 +210,28 @@ const Navbar = () => {
 
           <div className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                className="nav-link"
-              >
-                {link.name}
-              </a>
+              link.type === 'static' ? (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className="nav-link"
+                >
+                  {link.name}
+                </a>
+              ) : (
+                <button
+                  key={link.name}
+                  onClick={link.onClick}
+                  className="nav-link"
+                >
+                  {link.name}
+                </button>
+              )
             ))}
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            {!user ? (
+            {(!user || !isAuthenticated) ? (
               <>
                 <Button
                   as={Link}
@@ -127,44 +254,124 @@ const Navbar = () => {
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center space-x-2 text-white hover:text-accent transition-colors"
+                  className="flex items-center space-x-3 transition-colors p-2 rounded-lg hover:bg-white/90 bg-white/80 border border-white/30 shadow-sm"
                 >
-                  <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
-                    <span className="text-white font-semibold">
+                  {/* Profile Picture or Initial */}
+                  <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-accent">
+                    {getUserProfilePicture() ? (
+                      <img
+                        src={getUserProfilePicture()}
+                        alt={getUserDisplayName()}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to initial if image fails to load
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <span
+                      className={`text-white font-semibold text-sm ${getUserProfilePicture() ? 'hidden' : 'flex'} items-center justify-center w-full h-full`}
+                    >
                       {getUserInitial()}
                     </span>
                   </div>
-                  <ChevronDownIcon className="h-4 w-4" />
+
+                  {/* User Name */}
+                  <div className="hidden md:flex flex-col items-start">
+                    <span className="text-sm font-medium text-gray-800">
+                      {getUserDisplayName()}
+                    </span>
+                    <span className="text-xs text-gray-600 capitalize">
+                      {user?.role || 'User'}
+                    </span>
+                  </div>
+
+                  <div className="bg-white rounded-full p-1 ml-2">
+                    <ChevronDownIcon className="h-3 w-3 text-gray-800" />
+                  </div>
                 </button>
 
                 {dropdownOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2"
+                    className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg py-2 border border-gray-200"
                   >
-                    <Link
-                      to={getDashboardLink()}
-                      onClick={() => setDropdownOpen(false)}
-                      className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
-                    >
-                      Dashboard
-                    </Link>
-                    {user?.role === 'freelancer' && (
+                    {/* User Info Header */}
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-accent">
+                          {getUserProfilePicture() ? (
+                            <img
+                              src={getUserProfilePicture()}
+                              alt={getUserDisplayName()}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className={`text-white font-semibold ${getUserProfilePicture() ? 'hidden' : 'flex'} items-center justify-center w-full h-full`}
+                          >
+                            {getUserInitial()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {getUserDisplayName()}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {user?.email}
+                          </p>
+                          <p className="text-xs text-accent font-medium capitalize">
+                            {user?.role || 'User'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-1">
                       <Link
-                        to="/freelancer-profile-setup"
+                        to={getDashboardLink()}
                         onClick={() => setDropdownOpen(false)}
-                        className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       >
-                        Profile
+                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" />
+                        </svg>
+                        Dashboard
                       </Link>
-                    )}
-                    <button
-                      onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-                    >
-                      Logout
-                    </button>
+
+                      {user?.role === 'freelancer' && (
+                        <Link
+                          to="/freelancer-profile-setup"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          Profile Settings
+                        </Link>
+                      )}
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Logout
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </div>
@@ -192,17 +399,30 @@ const Navbar = () => {
           >
             <div className="px-2 pt-2 pb-3 space-y-1">
               {navLinks.map((link) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  className="block text-white hover:text-accent px-3 py-2 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {link.name}
-                </a>
+                link.type === 'static' ? (
+                  <a
+                    key={link.name}
+                    href={link.href}
+                    className="block text-white hover:text-accent px-3 py-2 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.name}
+                  </a>
+                ) : (
+                  <button
+                    key={link.name}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      link.onClick();
+                    }}
+                    className="block w-full text-left text-white hover:text-accent px-3 py-2 transition-colors"
+                  >
+                    {link.name}
+                  </button>
+                )
               ))}
               <div className="border-t border-white/20 pt-3 space-y-2">
-                {!user ? (
+                {(!user || !isAuthenticated) ? (
                   <>
                     <Link
                       to="/login"

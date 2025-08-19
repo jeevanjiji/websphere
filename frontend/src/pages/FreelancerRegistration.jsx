@@ -258,7 +258,7 @@ const FreelancerRegistration = () => {
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
 
-              <div>
+              <div className="relative">
                 <ValidatedInput
                   type={showPassword ? 'text' : 'password'}
                   name="password"
@@ -275,13 +275,12 @@ const FreelancerRegistration = () => {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
-                  style={{ marginTop: '12px' }}
                 >
                   {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 </button>
               </div>
 
-              <div>
+              <div className="relative">
                 <ValidatedInput
                   type={showConfirmPassword ? 'text' : 'password'}
                   name="confirmPassword"
@@ -298,7 +297,6 @@ const FreelancerRegistration = () => {
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
-                  style={{ marginTop: '12px' }}
                 >
                   {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 </button>

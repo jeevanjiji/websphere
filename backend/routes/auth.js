@@ -5,42 +5,13 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const PendingUser = require('../models/PendingUser');
 const { OAuth2Client } = require('google-auth-library');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { uploadProfilePicture, handleMulterError } = require('../middlewares/upload');
+const {
+  uploadProfilePicture: uploadToCloudinary,
+  validateCloudinaryConfig
+} = require('../utils/cloudinaryConfig');
 
 const router = express.Router();
-
-/* ─────────────────────────────────────────
-   MULTER CONFIG - MUST BE FIRST
-─────────────────────────────────────────── */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/profiles';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error('Only images are allowed!'));
-  }
-});
 
 // Initialize Google OAuth client
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -75,7 +46,7 @@ console.log('📝 About to define /freelancer/auto-tag-bio route...');
 console.log('📝 Upload middleware available:', typeof upload);
 
 // Freelancer auto-tag bio route with skill extraction
-router.post('/freelancer/auto-tag-bio', upload.single('profilePicture'), async (req, res) => {
+router.post('/freelancer/auto-tag-bio', async (req, res) => {
   try {
     console.log('🔥 Auto-tag bio route hit!');
     console.log('📝 Request body:', req.body);
@@ -187,6 +158,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
+      });
+    }
+
+    // Check if account is active
+    if (!user.isActive) {
+      console.log('Account deactivated:', user.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support for assistance.',
+        accountDeactivated: true,
+        deactivatedAt: user.deactivatedAt,
+        reason: user.deactivationReason
       });
     }
 
@@ -834,9 +817,63 @@ router.get('/test-route', (req, res) => {
       'POST /resend-verification',
       'POST /forgot-password',
       'POST /reset-password',
-      'GET /dev-verify/:email (dev only)'
+      'GET /dev-verify/:email (dev only)',
+      'GET /session',
+      'POST /logout'
     ]
   });
+});
+
+// Check session status
+router.get('/session', (req, res) => {
+  try {
+    if (req.session?.user) {
+      res.json({
+        success: true,
+        isAuthenticated: true,
+        user: req.session.user
+      });
+    } else {
+      res.json({
+        success: true,
+        isAuthenticated: false,
+        user: null
+      });
+    }
+  } catch (error) {
+    console.error('Session check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check session'
+    });
+  }
+});
+
+// Logout route
+router.post('/logout', (req, res) => {
+  try {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Session destroy error:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to logout'
+        });
+      }
+
+      res.clearCookie('connect.sid'); // Clear session cookie
+      res.json({
+        success: true,
+        message: 'Logged out successfully'
+      });
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to logout'
+    });
+  }
 });
 
 module.exports = router;

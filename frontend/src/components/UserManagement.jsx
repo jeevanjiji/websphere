@@ -19,8 +19,11 @@ const UserManagement = () => {
   const [showDeleted, setShowDeleted] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deleteType, setDeleteType] = useState('soft'); // 'soft' or 'hard'
   const [deleteReason, setDeleteReason] = useState('');
+  const [deactivationReason, setDeactivationReason] = useState('');
+  const [selectedPresetReason, setSelectedPresetReason] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
 
   useEffect(() => {
@@ -85,6 +88,15 @@ const UserManagement = () => {
     setAdminPassword('');
   };
 
+  const handleDeactivateUser = (user) => {
+    setSelectedUser(user);
+    setShowDeactivateModal(true);
+    // Set default reason for low rating
+    const defaultReason = `Failed to maintain minimum rating requirement of 2.5 stars with ${user.completedProjects || 0} freelancing projects.`;
+    setDeactivationReason(defaultReason);
+    setSelectedPresetReason('rating');
+  };
+
   const confirmDeleteUser = async () => {
     if (!selectedUser) return;
 
@@ -123,6 +135,103 @@ const UserManagement = () => {
     } catch (error) {
       console.error('Error deleting user:', error);
       toast.error('Failed to delete user');
+    }
+  };
+
+  const confirmDeactivateUser = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedUser._id}/deactivate`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: deactivationReason })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(data.message);
+        fetchUsers();
+        setShowDeactivateModal(false);
+        setSelectedUser(null);
+        setDeactivationReason('');
+        setSelectedPresetReason('');
+      } else {
+        toast.error(data.message || 'Failed to deactivate user');
+      }
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      toast.error('Error deactivating user');
+    }
+  };
+
+  const presetReasons = [
+    {
+      id: 'rating',
+      label: 'Low Rating (Below 2.5 stars)',
+      template: (user) => `Failed to maintain minimum rating requirement of 2.5 stars with ${user.completedProjects || 0} freelancing projects.`
+    },
+    {
+      id: 'quality',
+      label: 'Poor Work Quality',
+      template: (user) => `Multiple complaints about work quality and failure to meet project requirements with ${user.completedProjects || 0} completed projects.`
+    },
+    {
+      id: 'communication',
+      label: 'Poor Communication',
+      template: (user) => `Consistent issues with client communication and responsiveness affecting project delivery.`
+    },
+    {
+      id: 'violation',
+      label: 'Terms of Service Violation',
+      template: (user) => `Violation of WebSphere Terms of Service and community guidelines.`
+    },
+    {
+      id: 'custom',
+      label: 'Custom Reason',
+      template: (user) => ''
+    }
+  ];
+
+  const handlePresetReasonChange = (reasonId) => {
+    setSelectedPresetReason(reasonId);
+    const preset = presetReasons.find(r => r.id === reasonId);
+    if (preset && selectedUser) {
+      setDeactivationReason(preset.template(selectedUser));
+    }
+  };
+
+  const handleReactivateUser = async (user) => {
+    try {
+      const confirmed = window.confirm(`Are you sure you want to reactivate ${user.fullName}'s freelancer account?`);
+
+      if (confirmed) {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`http://localhost:5000/api/admin/users/${user._id}/reactivate`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          toast.success(data.message);
+          fetchUsers();
+        } else {
+          toast.error(data.message || 'Failed to reactivate user');
+        }
+      }
+    } catch (error) {
+      console.error('Error reactivating user:', error);
+      toast.error('Error reactivating user');
     }
   };
 
@@ -165,6 +274,43 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteAllFreelancersForTesting = async () => {
+    try {
+      const confirmed = window.confirm(
+        '⚠️ TESTING ONLY: This will permanently delete ALL freelancer accounts. Are you sure?'
+      );
+
+      if (confirmed) {
+        const doubleConfirm = window.confirm(
+          '🚨 FINAL WARNING: This action cannot be undone. All freelancer data will be lost. Continue?'
+        );
+
+        if (doubleConfirm) {
+          const token = localStorage.getItem('token');
+          const response = await fetch('http://localhost:5000/api/admin/users/freelancers/delete-all-for-testing', {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            toast.success(`${data.deletedCount} freelancer accounts deleted for testing`);
+            fetchUsers();
+          } else {
+            toast.error(data.message || 'Failed to delete freelancer accounts');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting freelancer accounts:', error);
+      toast.error('Error deleting freelancer accounts');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -193,13 +339,21 @@ const UserManagement = () => {
           <button
             onClick={() => setShowDeleted(!showDeleted)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-              showDeleted 
-                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+              showDeleted
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             {showDeleted ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
             <span>{showDeleted ? 'Hide Deleted' : 'Show Deleted'}</span>
+          </button>
+          <button
+            onClick={handleDeleteAllFreelancersForTesting}
+            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            title="TESTING ONLY: Delete all freelancer accounts"
+          >
+            <ExclamationTriangleIcon className="h-5 w-5" />
+            <span>🧪 Delete All Freelancers</span>
           </button>
         </div>
       </div>
@@ -295,13 +449,33 @@ const UserManagement = () => {
                         </button>
                       ) : (
                         <>
+                          {user.role === 'freelancer' && user.isActive && (
+                            <button
+                              onClick={() => handleDeactivateUser(user)}
+                              className="text-orange-600 hover:text-orange-900 flex items-center space-x-1"
+                              title="Deactivate Freelancer Account"
+                            >
+                              <ExclamationTriangleIcon className="h-4 w-4" />
+                              <span>Deactivate</span>
+                            </button>
+                          )}
+                          {user.role === 'freelancer' && !user.isActive && (
+                            <button
+                              onClick={() => handleReactivateUser(user)}
+                              className="text-green-600 hover:text-green-900 flex items-center space-x-1"
+                              title="Reactivate Freelancer Account"
+                            >
+                              <ArrowPathIcon className="h-4 w-4" />
+                              <span>Reactivate</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteUser(user, 'soft')}
                             className="text-yellow-600 hover:text-yellow-900 flex items-center space-x-1"
-                            title="Deactivate User"
+                            title="Soft Delete User"
                           >
                             <TrashIcon className="h-4 w-4" />
-                            <span>Deactivate</span>
+                            <span>Soft Delete</span>
                           </button>
                           <button
                             onClick={() => handleDeleteUser(user, 'hard')}
@@ -411,6 +585,154 @@ const UserManagement = () => {
                   }`}
                 >
                   {deleteType === 'soft' ? 'Deactivate' : 'Permanently Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Deactivation Modal */}
+      <AnimatePresence>
+        {showDeactivateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center mb-4">
+                <ExclamationTriangleIcon className="h-6 w-6 text-orange-600 mr-3" />
+                <h3 className="text-lg font-medium text-gray-900">
+                  Deactivate Freelancer Account
+                </h3>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  Are you sure you want to deactivate this freelancer account? The user will no longer be able to log in and their profile will be hidden from clients. They will receive an email notification explaining the reason.
+                </p>
+                
+                {selectedUser && (
+                  <div className="bg-gray-50 p-4 rounded-md mb-4">
+                    <div className="flex items-center mb-2">
+                      {selectedUser.profilePicture ? (
+                        <img className="h-10 w-10 rounded-full mr-3" src={selectedUser.profilePicture} alt="" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center mr-3">
+                          <UserIcon className="h-6 w-6 text-gray-600" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-gray-900">{selectedUser.fullName}</p>
+                        <p className="text-sm text-gray-600">{selectedUser.email}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">Role:</span>
+                        <span className="ml-2 font-medium">{selectedUser.role}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Status:</span>
+                        <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          selectedUser.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedUser.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Rating:</span>
+                        <span className="ml-2 font-medium">
+                          {selectedUser.rating && selectedUser.rating.average > 0 
+                            ? `${selectedUser.rating.average.toFixed(1)}/5.0 (${selectedUser.rating.count} reviews)`
+                            : 'No ratings yet'
+                          }
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Projects:</span>
+                        <span className="ml-2 font-medium">{selectedUser.completedProjects || 0} completed</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Member since:</span>
+                        <span className="ml-2 font-medium">{new Date(selectedUser.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for deactivation *
+                </label>
+                
+                {/* Preset Reasons */}
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Choose a preset reason:</p>
+                  <div className="space-y-2">
+                    {presetReasons.map((preset) => (
+                      <label key={preset.id} className="flex items-center">
+                        <input
+                          type="radio"
+                          name="presetReason"
+                          value={preset.id}
+                          checked={selectedPresetReason === preset.id}
+                          onChange={(e) => handlePresetReasonChange(e.target.value)}
+                          className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{preset.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Reason Textarea */}
+                <textarea
+                  value={deactivationReason}
+                  onChange={(e) => {
+                    setDeactivationReason(e.target.value);
+                    if (e.target.value !== presetReasons.find(r => r.id === selectedPresetReason)?.template(selectedUser)) {
+                      setSelectedPresetReason('custom');
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  rows="4"
+                  placeholder="Enter detailed reason for deactivation (this will be sent to the freelancer)..."
+                  required
+                />
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 This message will be included in the email sent to the freelancer explaining why their account was deactivated.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeactivateModal(false);
+                    setSelectedUser(null);
+                    setDeactivationReason('');
+                    setSelectedPresetReason('');
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeactivateUser}
+                  disabled={!deactivationReason.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 rounded-md transition-colors"
+                >
+                  Deactivate & Send Email
                 </button>
               </div>
             </motion.div>

@@ -144,6 +144,20 @@ const userSchema = new mongoose.Schema({
     default: null
   },
 
+  // Account deactivation fields (for freelancers)
+  deactivatedAt: {
+    type: Date,
+    default: null
+  },
+  deactivationReason: {
+    type: String,
+    default: null
+  },
+  reactivatedAt: {
+    type: Date,
+    default: null
+  },
+
   // Password reset fields
   resetPasswordToken: {
     type: String,
@@ -170,6 +184,80 @@ const userSchema = new mongoose.Schema({
     github: String,
     website: String,
     twitter: String
+  },
+
+  // Account Settings
+  phoneNumber: {
+    type: String,
+    default: '',
+    validate: {
+      validator: function(v) {
+        // Allow empty string or valid phone number format
+        return !v || /^\+?[\d\s\-\(\)]{10,20}$/.test(v.replace(/\s/g, ''));
+      },
+      message: 'Invalid phone number format'
+    }
+  },
+
+  // Notification Preferences
+  notificationSettings: {
+    email: {
+      projectUpdates: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
+      proposals: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false },
+      weeklyDigest: { type: Boolean, default: true }
+    },
+    push: {
+      projectUpdates: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
+      proposals: { type: Boolean, default: true }
+    },
+    sms: {
+      enabled: { type: Boolean, default: false },
+      urgentOnly: { type: Boolean, default: true }
+    }
+  },
+
+  // Privacy Settings
+  privacySettings: {
+    profileVisibility: {
+      type: String,
+      enum: ['public', 'private', 'freelancers-only', 'clients-only'],
+      default: 'public'
+    },
+    showEmail: { type: Boolean, default: false },
+    showPhone: { type: Boolean, default: false },
+    showLocation: { type: Boolean, default: true },
+    showOnlineStatus: { type: Boolean, default: true },
+    allowDirectMessages: { type: Boolean, default: true },
+    showInSearchResults: { type: Boolean, default: true }
+  },
+
+  // Account Security
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorSecret: { type: String, default: null },
+  lastPasswordChange: { type: Date, default: Date.now },
+  loginAttempts: { type: Number, default: 0 },
+  lockUntil: { type: Date, default: null },
+
+  // Session and Login History
+  lastLoginAt: { type: Date, default: null },
+  lastLoginIP: { type: String, default: null },
+  loginHistory: [{
+    ip: String,
+    userAgent: String,
+    location: String,
+    timestamp: { type: Date, default: Date.now }
+  }],
+
+  // Account Preferences
+  preferences: {
+    language: { type: String, default: 'en' },
+    timezone: { type: String, default: 'UTC' },
+    currency: { type: String, default: 'USD' },
+    dateFormat: { type: String, enum: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'], default: 'MM/DD/YYYY' },
+    theme: { type: String, enum: ['light', 'dark', 'auto'], default: 'light' }
   }
 }, {
   timestamps: true
@@ -219,11 +307,59 @@ userSchema.methods.updateProfileCompletion = function() {
   return this.profileComplete;
 };
 
-// Pre-save hook to auto-update profile completion
+// Pre-save hook to auto-update profile completion and initialize defaults
 userSchema.pre('save', function(next) {
+  // Initialize default notification settings for new users
+  if (this.isNew) {
+    if (!this.notificationSettings) {
+      this.notificationSettings = {
+        email: {
+          projectUpdates: true,
+          messages: true,
+          proposals: true,
+          marketing: false,
+          weeklyDigest: true
+        },
+        push: {
+          projectUpdates: true,
+          messages: true,
+          proposals: true
+        },
+        sms: {
+          enabled: false,
+          urgentOnly: true
+        }
+      };
+    }
+
+    if (!this.privacySettings) {
+      this.privacySettings = {
+        profileVisibility: 'public',
+        showEmail: false,
+        showPhone: false,
+        showLocation: true,
+        showOnlineStatus: true,
+        allowDirectMessages: true,
+        showInSearchResults: true
+      };
+    }
+
+    if (!this.preferences) {
+      this.preferences = {
+        language: 'en',
+        timezone: 'UTC',
+        currency: 'USD',
+        dateFormat: 'MM/DD/YYYY',
+        theme: 'light'
+      };
+    }
+  }
+
+  // Update profile completion for freelancers
   if (this.role === 'freelancer') {
     this.profileComplete = this.isFreelancerProfileComplete();
   }
+
   next();
 });
 
@@ -255,26 +391,116 @@ userSchema.methods.addSkills = function(newSkills) {
   return this.skills;
 };
 
+// Method to update notification settings
+userSchema.methods.updateNotificationSettings = function(settings) {
+  if (settings.email) {
+    this.notificationSettings.email = { ...this.notificationSettings.email, ...settings.email };
+  }
+  if (settings.push) {
+    this.notificationSettings.push = { ...this.notificationSettings.push, ...settings.push };
+  }
+  if (settings.sms) {
+    this.notificationSettings.sms = { ...this.notificationSettings.sms, ...settings.sms };
+  }
+  return this.notificationSettings;
+};
+
+// Method to update privacy settings
+userSchema.methods.updatePrivacySettings = function(settings) {
+  this.privacySettings = { ...this.privacySettings, ...settings };
+  return this.privacySettings;
+};
+
+// Method to update account preferences
+userSchema.methods.updatePreferences = function(preferences) {
+  this.preferences = { ...this.preferences, ...preferences };
+  return this.preferences;
+};
+
+// Method to record login
+userSchema.methods.recordLogin = function(ip, userAgent, location) {
+  this.lastLoginAt = new Date();
+  this.lastLoginIP = ip;
+
+  // Add to login history (keep last 10 entries)
+  this.loginHistory.unshift({
+    ip,
+    userAgent,
+    location,
+    timestamp: new Date()
+  });
+
+  // Keep only last 10 login records
+  if (this.loginHistory.length > 10) {
+    this.loginHistory = this.loginHistory.slice(0, 10);
+  }
+
+  // Reset login attempts on successful login
+  this.loginAttempts = 0;
+  this.lockUntil = null;
+};
+
+// Method to handle failed login attempts
+userSchema.methods.handleFailedLogin = function() {
+  this.loginAttempts += 1;
+
+  // Lock account after 5 failed attempts for 30 minutes
+  if (this.loginAttempts >= 5) {
+    this.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  }
+};
+
+// Method to check if account is locked
+userSchema.methods.isAccountLocked = function() {
+  return this.lockUntil && this.lockUntil > new Date();
+};
+
 // Method to get public profile (safe for API responses)
 userSchema.methods.getPublicProfile = function() {
-  return {
+  const baseProfile = {
     id: this._id,
     fullName: this.fullName,
-    email: this.email, // Consider removing in production for privacy
     role: this.role,
     profilePicture: this.profilePicture,
     bio: this.bio,
     skills: this.skills,
     hourlyRate: this.hourlyRate,
     experienceLevel: this.experienceLevel,
-    location: this.location,
-    languages: this.languages,
     rating: this.rating,
     completedProjects: this.completedProjects,
-    socialLinks: this.socialLinks,
     profileComplete: this.profileComplete,
     isVerified: this.isVerified,
-    createdAt: this.createdAt
+    createdAt: this.createdAt,
+    languages: this.languages,
+    socialLinks: this.socialLinks
+  };
+
+  // Add fields based on privacy settings
+  if (this.privacySettings?.showEmail) {
+    baseProfile.email = this.email;
+  }
+
+  if (this.privacySettings?.showPhone && this.phoneNumber) {
+    baseProfile.phoneNumber = this.phoneNumber;
+  }
+
+  if (this.privacySettings?.showLocation) {
+    baseProfile.location = this.location;
+  }
+
+  return baseProfile;
+};
+
+// Method to get account settings (for profile management)
+userSchema.methods.getAccountSettings = function() {
+  return {
+    phoneNumber: this.phoneNumber,
+    notificationSettings: this.notificationSettings,
+    privacySettings: this.privacySettings,
+    preferences: this.preferences,
+    twoFactorEnabled: this.twoFactorEnabled,
+    lastPasswordChange: this.lastPasswordChange,
+    lastLoginAt: this.lastLoginAt
   };
 };
 
@@ -286,6 +512,10 @@ userSchema.index({ skills: 1 });
 userSchema.index({ 'rating.average': -1 });
 userSchema.index({ completedProjects: -1 });
 userSchema.index({ location: 1 });
+userSchema.index({ phoneNumber: 1 });
+userSchema.index({ lastLoginAt: -1 });
+userSchema.index({ 'privacySettings.profileVisibility': 1 });
+userSchema.index({ 'preferences.language': 1 });
 
 // Text index for search functionality
 userSchema.index({

@@ -3,6 +3,10 @@ require('dotenv').config();
 
 console.log('[DEBUG] MONGODB_URI from env:', process.env.MONGODB_URI);
 
+// Initialize Cloudinary
+const { validateCloudinaryConfig } = require('./utils/cloudinaryConfig');
+validateCloudinaryConfig();
+
 const express   = require('express');
 const cors      = require('cors');
 const mongoose  = require('mongoose');
@@ -222,6 +226,7 @@ app.listen(PORT, () => {
   console.log('   POST /api/auth/google');
   console.log('   POST /api/auth/freelancer/auto-tag-bio');
   console.log('   GET  /api/auth/test-route');
+  console.log('   GET  /api/projects/browse');
   console.log('   GET  /api/projects/my');
   console.log('   POST /api/projects');
   console.log('   GET  /uploads/profiles/* (static files)');

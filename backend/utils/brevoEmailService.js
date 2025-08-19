@@ -243,6 +243,50 @@ const {
   generatePasswordResetEmailText
 } = require('./emailTemplates');
 
+/**
+ * Send account deactivation email to freelancer
+ * @param {Object} user - User object
+ * @param {string} reason - Deactivation reason
+ * @param {Object} ratingInfo - Optional rating and project info
+ * @returns {Promise} - Email sending result
+ */
+async function sendDeactivationEmail(user, reason, ratingInfo = null) {
+  try {
+    if (!isInitialized) {
+      // Development mode - log email instead of sending
+      console.log('📧 [DEV MODE] Deactivation email would be sent via Brevo to:', user.email);
+      console.log('📝 Reason:', reason || 'No reason provided');
+      if (ratingInfo) {
+        console.log('⭐ Rating Info:', ratingInfo);
+      }
+
+      return {
+        success: true,
+        messageId: 'dev-mode-brevo-deactivation-' + Date.now(),
+        devMode: true
+      };
+    }
+
+    const { getDeactivationEmailTemplate, getDeactivationEmailTextTemplate } = require('./emailTemplates');
+
+    const emailData = {
+      to: user.email,
+      subject: 'WebSphere Freelancer Account Deactivated',
+      html: getDeactivationEmailTemplate(user, reason, ratingInfo),
+      text: getDeactivationEmailTextTemplate(user, reason, ratingInfo)
+    };
+
+    const result = await sendEmail(emailData);
+    console.log('✅ Deactivation email sent to:', user.email);
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Error sending deactivation email:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   generateVerificationToken,
   generatePasswordResetToken,
@@ -251,5 +295,6 @@ module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendDeactivationEmail,
   sendEmail
 };

@@ -9,6 +9,7 @@ import ValidatedInput from './ValidatedInput';
 import PasswordStrengthIndicator from './PasswordStrengthIndicator';
 import { Button, Input, Card } from './ui';
 import { validateFullName, validateEmail, validatePassword, validatePasswordConfirmation, validateRegistrationForm } from '../utils/validation';
+import { useAuth } from '../contexts/AuthContext';
 
 const AuthForm = ({ mode = 'login' }) => {
   const [isLogin, setIsLogin] = useState(mode === 'login');
@@ -16,6 +17,7 @@ const AuthForm = ({ mode = 'login' }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login, register } = useAuth();
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -89,27 +91,12 @@ const AuthForm = ({ mode = 'login' }) => {
     try {
       console.log('Attempting login with:', { email: loginData.email });
       
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include session cookies
-        body: JSON.stringify(loginData)
-      });
-
-      console.log('Response status:', response.status);
-      const data = await response.json();
-      console.log('Response data:', data);
+      const data = await login(loginData);
 
       if (data.success) {
-        // Store token if provided (for backward compatibility)
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-        }
-        localStorage.setItem('user', JSON.stringify(data.user));
-
         await showAlert('success', 'Login Successful!', data.message);
+
+        console.log('Login successful, navigating based on role:', data.user.role);
 
         // Navigate based on role and profile completion
         if (data.user.role === 'freelancer' && data.needsProfileSetup) {
@@ -364,17 +351,26 @@ const AuthForm = ({ mode = 'login' }) => {
                         <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-2">
                           Password
                         </label>
-                        <input
-                          id="login-password"
-                          type="password"
-                          name="password"
-                          autoComplete="current-password"
-                          value={loginData.password}
-                          onChange={(e) => setLoginData(prev => ({...prev, password: e.target.value}))}
-                          required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200"
-                          placeholder="Enter your password"
-                        />
+                        <div className="relative">
+                          <input
+                            id="login-password"
+                            type={showPassword ? 'text' : 'password'}
+                            name="password"
+                            autoComplete="current-password"
+                            value={loginData.password}
+                            onChange={(e) => setLoginData(prev => ({...prev, password: e.target.value}))}
+                            required
+                            className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200"
+                            placeholder="Enter your password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+                          >
+                            {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -491,7 +487,7 @@ const AuthForm = ({ mode = 'login' }) => {
                         className="bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:ring-primary focus:border-primary"
                       />
 
-                      <div>
+                      <div className="relative">
                         <ValidatedInput
                           type={showPassword ? 'text' : 'password'}
                           name="password"
@@ -508,14 +504,13 @@ const AuthForm = ({ mode = 'login' }) => {
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
-                          style={{ marginTop: '12px' }}
                         >
                           {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                         </button>
                         <PasswordStrengthIndicator password={registerData.password} />
                       </div>
 
-                      <div>
+                      <div className="relative">
                         <ValidatedInput
                           type={showConfirmPassword ? 'text' : 'password'}
                           name="confirmPassword"
@@ -532,7 +527,6 @@ const AuthForm = ({ mode = 'login' }) => {
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
-                          style={{ marginTop: '12px' }}
                         >
                           {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                         </button>

@@ -1,33 +1,102 @@
 const express = require('express');
-const multer = require('multer');
 const Project = require('../models/Project');
-const { auth } = require('../middlewares/auth'); // Fixed path: middlewares with 's'
+const { auth } = require('../middlewares/auth');
+const { uploadProjectAttachments, handleMulterError } = require('../middlewares/upload');
+const {
+  uploadProjectAttachment,
+  validateCloudinaryConfig
+} = require('../utils/cloudinaryConfig');
 const router = express.Router();
 
-// Create uploads directory if it doesn't exist
-const fs = require('fs');
-const path = require('path');
-const uploadDir = path.join(__dirname, '../uploads/projects');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// GET /api/projects/browse - Get all open projects for freelancers to browse
+router.get('/browse', auth(['freelancer']), async (req, res) => {
+  console.log('🔥 GET BROWSE PROJECTS - User ID:', req.user.userId);
+  try {
+    const {
+      search,
+      skills,
+      budgetMin,
+      budgetMax,
+      budgetType,
+      page = 1,
+      limit = 10
+    } = req.query;
 
-// Multer configuration
-const storage = multer.diskStorage({
-  destination: 'uploads/projects',
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + '-' + file.originalname);
+    // Build query for open projects
+    let query = { status: 'open' };
+
+    // Add search filter
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add skills filter
+    if (skills) {
+      const skillsArray = skills.split(',').map(s => s.trim());
+      query.skills = { $in: skillsArray };
+    }
+
+    // Add budget filters
+    if (budgetType) {
+      query.budgetType = budgetType;
+    }
+    if (budgetMin || budgetMax) {
+      query.budgetAmount = {};
+      if (budgetMin) query.budgetAmount.$gte = parseFloat(budgetMin);
+      if (budgetMax) query.budgetAmount.$lte = parseFloat(budgetMax);
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch projects with client info
+    const projects = await Project.find(query)
+      .populate('client', 'fullName profilePicture rating.average rating.count')
+      .sort('-createdAt')
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalProjects = await Project.countDocuments(query);
+    const totalPages = Math.ceil(totalProjects / parseInt(limit));
+
+    console.log('✅ Found', projects.length, 'open projects for browsing');
+    res.json({
+      success: true,
+      projects,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalProjects,
+        hasNextPage: parseInt(page) < totalPages,
+        hasPrevPage: parseInt(page) > 1
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching browse projects:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
-const upload = multer({ storage });
 
-// GET /api/projects/my - Get client's own projects
-router.get('/my', auth(['client']), async (req, res) => {
-  console.log('🔥 GET MY PROJECTS - User ID:', req.user.userId);
+// GET /api/projects/my - Get user's own projects (client's created projects or freelancer's applied projects)
+router.get('/my', auth(['client', 'freelancer']), async (req, res) => {
+  console.log('🔥 GET MY PROJECTS - User ID:', req.user.userId, 'Role:', req.user.role);
   try {
-    const projects = await Project.find({ client: req.user.userId }).sort('-createdAt');
-    console.log('✅ Found', projects.length, 'projects');
+    let projects = [];
+
+    if (req.user.role === 'client') {
+      // For clients: get projects they created
+      projects = await Project.find({ client: req.user.userId }).sort('-createdAt');
+    } else if (req.user.role === 'freelancer') {
+      // For freelancers: get all projects for now (later we can filter by applied/awarded projects)
+      // For now, just return empty array or sample projects
+      projects = await Project.find({}).sort('-createdAt').limit(10);
+    }
+
+    console.log('✅ Found', projects.length, 'projects for', req.user.role);
     res.json({ success: true, projects });
   } catch (error) {
     console.error('❌ Error fetching projects:', error);
@@ -36,10 +105,42 @@ router.get('/my', auth(['client']), async (req, res) => {
 });
 
 // POST /api/projects - Create new project
-router.post('/', auth(['client']), upload.array('attachments', 5), async (req, res) => {
+router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) => {
   console.log('🔥 CREATE PROJECT ROUTE HIT');
   try {
     const { title, description, skills, budgetType, budgetAmount, deadline } = req.body;
+
+    let attachmentUrls = [];
+
+    // Upload attachments to Cloudinary if any
+    if (req.files && req.files.length > 0) {
+      if (!validateCloudinaryConfig()) {
+        return res.status(500).json({
+          success: false,
+          message: 'File upload service not configured'
+        });
+      }
+
+      try {
+        const uploadPromises = req.files.map(async (file, index) => {
+          const result = await uploadProjectAttachment(
+            file.buffer,
+            'temp_project_' + Date.now(), // Temporary project ID
+            file.originalname
+          );
+          return result.secure_url;
+        });
+
+        attachmentUrls = await Promise.all(uploadPromises);
+        console.log('✅ Uploaded', attachmentUrls.length, 'attachments to Cloudinary');
+      } catch (uploadError) {
+        console.error('❌ Cloudinary upload error:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload attachments. Please try again.'
+        });
+      }
+    }
 
     const project = await Project.create({
       client: req.user.userId,
@@ -49,7 +150,7 @@ router.post('/', auth(['client']), upload.array('attachments', 5), async (req, r
       budgetType,
       budgetAmount,
       deadline,
-      attachments: req.files ? req.files.map(f => '/' + f.path.replace(/\\/g, '/')) : []
+      attachments: attachmentUrls
     });
 
     console.log('✅ Project created:', project._id);
@@ -59,5 +160,8 @@ router.post('/', auth(['client']), upload.array('attachments', 5), async (req, r
     res.status(400).json({ success: false, message: err.message });
   }
 });
+
+// Add error handling middleware for multer errors
+router.use(handleMulterError);
 
 module.exports = router;

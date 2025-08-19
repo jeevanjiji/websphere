@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+
 import PostProjectForm from '../components/PostProjectForm'; // Adjust path as needed
 import { Card } from './ui';
 
@@ -18,10 +19,19 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
   const fetchMyProjects = async () => {
     try {
       setLoading(true);
+
+      // Get the JWT token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found, redirecting to login');
+        navigate('/login');
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/projects/my', {
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -30,6 +40,12 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         setMyProjects(data.projects || []);
       } else {
         console.error('Failed to fetch projects:', response.status);
+        if (response.status === 401 || response.status === 403) {
+          console.error('Authentication failed, redirecting to login');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+        }
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -44,7 +60,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     console.log('Project created successfully:', newProject);
     setShowForm(false);
     fetchMyProjects(); // Refresh the project list
-    toast.success('Project posted successfully!');
+    toast.success('Project posted successfully! Your project is now live and visible to freelancers.');
   };
 
   return (

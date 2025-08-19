@@ -251,4 +251,206 @@ router.get('/users/deleted', authenticate, isAdmin, async (req, res) => {
   }
 });
 
+// Deactivate freelancer account
+router.patch('/users/:userId/deactivate', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    // Find the user to deactivate
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Only allow deactivation of freelancers
+    if (user.role !== 'freelancer') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only freelancer accounts can be deactivated'
+      });
+    }
+
+    // Prevent admin from deactivating themselves (if they're a freelancer)
+    if (userId === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot deactivate your own account'
+      });
+    }
+
+    // Check if already deactivated
+    if (!user.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'User account is already deactivated'
+      });
+    }
+
+    // Prepare rating-based default reason if no reason provided or if it's a generic reason
+    let deactivationReason = reason;
+    let ratingInfo = null;
+
+    if (!reason || reason.toLowerCase().includes('rating') || reason.toLowerCase().includes('performance')) {
+      // Build rating-based reason with user's actual stats
+      const currentRating = user.rating.average || 0;
+      const ratingCount = user.rating.count || 0;
+      const completedProjects = user.completedProjects || 0;
+
+      ratingInfo = {
+        currentRating: currentRating,
+        ratingCount: ratingCount,
+        completedProjects: completedProjects
+      };
+
+      // Create a detailed reason if not provided or if it's rating-related
+      if (!reason) {
+        deactivationReason = `Failed to maintain minimum rating requirement of 2.5 stars. Current rating: ${currentRating.toFixed(1)}/5.0 stars with ${completedProjects} completed projects.`;
+      } else if (reason.toLowerCase().includes('rating') || reason.toLowerCase().includes('performance')) {
+        deactivationReason = reason + ` (Current stats: ${currentRating.toFixed(1)}/5.0 stars, ${completedProjects} projects completed)`;
+      }
+    }
+
+    // Deactivate the user
+    user.isActive = false;
+    user.deactivatedAt = new Date();
+    user.deactivationReason = deactivationReason;
+    await user.save();
+
+    // Send deactivation email to freelancer
+    try {
+      const { sendDeactivationEmail } = require('../utils/brevoEmailService');
+      await sendDeactivationEmail(user, deactivationReason, ratingInfo);
+      console.log(`📧 Deactivation email sent to: ${user.email}`);
+    } catch (emailError) {
+      console.error('Error sending deactivation email:', emailError);
+      // Don't fail the deactivation if email fails
+    }
+
+    console.log(`🚫 Freelancer account deactivated: ${user.email} (ID: ${userId})`);
+    console.log(`👤 Deactivated by: ${req.user.email || 'Admin'} (ID: ${req.user.id})`);
+    console.log(`📝 Reason: ${deactivationReason}`);
+    if (ratingInfo) {
+      console.log(`⭐ Rating: ${ratingInfo.currentRating.toFixed(1)}/5.0 (${ratingInfo.ratingCount} reviews), Projects: ${ratingInfo.completedProjects}`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Freelancer account has been deactivated successfully',
+      deactivatedUser: {
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        deactivatedAt: user.deactivatedAt,
+        reason: user.deactivationReason,
+        ratingInfo: ratingInfo
+      }
+    });
+
+  } catch (error) {
+    console.error('Error deactivating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deactivating user account'
+    });
+  }
+});
+
+// Reactivate freelancer account
+router.patch('/users/:userId/reactivate', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find the user to reactivate
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Only allow reactivation of freelancers
+    if (user.role !== 'freelancer') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only freelancer accounts can be reactivated'
+      });
+    }
+
+    // Check if already active
+    if (user.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'User account is already active'
+      });
+    }
+
+    // Reactivate the user
+    user.isActive = true;
+    user.reactivatedAt = new Date();
+    user.deactivationReason = null;
+    user.deactivatedAt = null;
+    await user.save();
+
+    console.log(`✅ Freelancer account reactivated: ${user.email} (ID: ${userId})`);
+    console.log(`👤 Reactivated by: ${req.user.email || 'Admin'} (ID: ${req.user.id})`);
+
+    res.json({
+      success: true,
+      message: 'Freelancer account has been reactivated successfully',
+      reactivatedUser: {
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        reactivatedAt: user.reactivatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error reactivating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error reactivating user account'
+    });
+  }
+});
+
+// TEMPORARY: Delete all freelancer accounts for testing (REMOVE IN PRODUCTION)
+router.delete('/users/freelancers/delete-all-for-testing', authenticate, isAdmin, async (req, res) => {
+  try {
+    // Only allow in development environment
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        message: 'This endpoint is only available in development mode'
+      });
+    }
+
+    // Delete all freelancer accounts
+    const result = await User.deleteMany({ role: 'freelancer' });
+
+    console.log(`🧪 [TESTING] Deleted ${result.deletedCount} freelancer accounts for testing`);
+    console.log(`👤 Requested by: ${req.user.email || 'Admin'} (ID: ${req.user.id})`);
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.deletedCount} freelancer accounts for testing`,
+      deletedCount: result.deletedCount
+    });
+
+  } catch (error) {
+    console.error('Error deleting freelancer accounts for testing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting freelancer accounts'
+    });
+  }
+});
+
 module.exports = router;

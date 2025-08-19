@@ -1,125 +1,245 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   MagnifyingGlassIcon,
   BriefcaseIcon,
   CurrencyDollarIcon,
   ClockIcon,
-  UserIcon,
   StarIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
 import { Button, Card, Badge } from './ui';
 
 const FreelancerDashboard = () => {
   const [activeTab, setActiveTab] = useState('browse');
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState('');
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalProjects: 0
+  });
 
   const tabs = [
     { id: 'browse', name: 'Browse Projects', icon: MagnifyingGlassIcon },
     { id: 'proposals', name: 'My Proposals', icon: DocumentTextIcon },
     { id: 'active', name: 'Active Projects', icon: BriefcaseIcon },
     { id: 'earnings', name: 'Earnings', icon: CurrencyDollarIcon },
-    { id: 'profile', name: 'Profile', icon: UserIcon },
   ];
 
-  const sampleProjects = [
-    {
-      id: 1,
-      title: "React Developer for E-commerce Platform",
-      description: "Looking for an experienced React developer to build a modern e-commerce platform with payment integration.",
-      budget: "$2,000 - $5,000",
-      timeline: "2-3 months",
-      skills: ["React", "Node.js", "MongoDB"],
-      client: "TechCorp Inc.",
-      postedTime: "2 hours ago"
-    },
-    {
-      id: 2,
-      title: "UI/UX Design for Mobile App",
-      description: "Need a creative designer to design user interface for a fitness tracking mobile application.",
-      budget: "$1,000 - $2,500",
-      timeline: "1 month",
-      skills: ["Figma", "Adobe XD", "Mobile Design"],
-      client: "FitLife Solutions",
-      postedTime: "5 hours ago"
-    },
-    {
-      id: 3,
-      title: "Python Data Analysis Project",
-      description: "Analyze customer data and create insights dashboard using Python and visualization libraries.",
-      budget: "$800 - $1,500",
-      timeline: "2-4 weeks",
-      skills: ["Python", "Pandas", "Matplotlib"],
-      client: "DataDriven Analytics",
-      postedTime: "1 day ago"
+  // Fetch projects from API
+  const fetchProjects = async (page = 1, search = '', skills = '') => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to view projects');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10'
+      });
+
+      if (search.trim()) {
+        params.append('search', search.trim());
+      }
+      if (skills.trim()) {
+        params.append('skills', skills.trim());
+      }
+
+      const response = await fetch(`http://localhost:5000/api/projects/browse?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setProjects(data.projects);
+        setPagination(data.pagination);
+      } else {
+        toast.error(data.message || 'Failed to fetch projects');
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      toast.error('Failed to load projects. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // Load projects when component mounts or when activeTab changes to browse
+  useEffect(() => {
+    if (activeTab === 'browse') {
+      fetchProjects(1, searchTerm, selectedSkills);
+    }
+  }, [activeTab]);
+
+  // Handle search
+  const handleSearch = () => {
+    fetchProjects(1, searchTerm, selectedSkills);
+  };
+
+  // Handle pagination
+  const handlePageChange = (newPage) => {
+    fetchProjects(newPage, searchTerm, selectedSkills);
+  };
+
+
+
+  // Helper function to format project data for display
+  const formatProject = (project) => {
+    const timeAgo = new Date(project.createdAt).toLocaleDateString();
+    const budget = project.budgetType === 'fixed'
+      ? `$${project.budgetAmount} (Fixed)`
+      : `$${project.budgetAmount}/hr (Hourly)`;
+
+    return {
+      ...project,
+      budget,
+      postedTime: timeAgo,
+      client: project.client?.fullName || 'Anonymous Client'
+    };
+  };
 
   const renderBrowseProjects = () => (
     <div className="space-y-6">
+      {/* Search and Filter Section */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <input
           type="text"
           placeholder="Search projects..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
         />
-        <select className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary">
-          <option>All Categories</option>
-          <option>Web Development</option>
-          <option>Mobile Apps</option>
-          <option>Design</option>
-          <option>Data Science</option>
-        </select>
+        <input
+          type="text"
+          placeholder="Filter by skills (e.g., React, Node.js)"
+          value={selectedSkills}
+          onChange={(e) => setSelectedSkills(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+        <button
+          onClick={handleSearch}
+          className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          Search
+        </button>
       </div>
 
-      {sampleProjects.map((project) => (
-        <Card
-          key={project.id}
-          variant="default"
-          padding="default"
-          hover={true}
-          className="mb-6"
-        >
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="heading-4">{project.title}</h3>
-            <span className="text-sm text-gray-500">{project.postedTime}</span>
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="mt-2 text-gray-600">Loading projects...</p>
+        </div>
+      )}
+
+      {/* Projects List */}
+      {!loading && projects.length === 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No projects found. Try adjusting your search criteria.</p>
+        </div>
+      )}
+
+      {/* Project Cards */}
+      {!loading && projects.length > 0 && (
+        <div>
+          <div className="mb-4 text-sm text-gray-600">
+            Showing {projects.length} of {pagination.totalProjects} projects
           </div>
 
-          <p className="body-regular mb-4">{project.description}</p>
-
-          <div className="flex flex-wrap gap-2 mb-4">
-            {project.skills.map((skill) => (
-              <Badge
-                key={skill}
-                variant="primary"
-                size="small"
+          {projects.map((project) => {
+            const formattedProject = formatProject(project);
+            return (
+              <Card
+                key={project._id}
+                variant="default"
+                padding="default"
+                hover={true}
+                className="mb-6"
               >
-                {skill}
-              </Badge>
-            ))}
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <span className="flex items-center gap-1">
-                <CurrencyDollarIcon className="h-4 w-4" />
-                {project.budget}
-              </span>
-              <span className="flex items-center gap-1">
-                <ClockIcon className="h-4 w-4" />
-                {project.timeline}
-              </span>
-              <span className="flex items-center gap-1">
-                <UserIcon className="h-4 w-4" />
-                {project.client}
-              </span>
-            </div>
-            <Button variant="primary" size="medium">
-              Apply Now
-            </Button>
-          </div>
-        </Card>
-      ))}
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="heading-4">{formattedProject.title}</h3>
+                  <span className="text-sm text-gray-500">{formattedProject.postedTime}</span>
+                </div>
+
+                <p className="body-regular mb-4">{formattedProject.description}</p>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {formattedProject.skills.map((skill, index) => (
+                    <Badge
+                      key={`${skill}-${index}`}
+                      variant="primary"
+                      size="small"
+                    >
+                      {skill}
+                    </Badge>
+                  ))}
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <CurrencyDollarIcon className="h-4 w-4" />
+                      {formattedProject.budget}
+                    </span>
+                    {formattedProject.deadline && (
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-4 w-4" />
+                        Due: {new Date(formattedProject.deadline).toLocaleDateString()}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <UserIcon className="h-4 w-4" />
+                      {formattedProject.client}
+                    </span>
+                  </div>
+                  <Button variant="primary" size="medium">
+                    Apply Now
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && projects.length > 0 && pagination.totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8">
+          <button
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={!pagination.hasPrevPage}
+            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Previous
+          </button>
+
+          <span className="text-sm text-gray-600">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+
+          <button
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={!pagination.hasNextPage}
+            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -159,58 +279,6 @@ const FreelancerDashboard = () => {
     </div>
   );
 
-  const renderProfile = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-xl font-semibold mb-6">Freelancer Profile</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-            <input
-              type="text"
-              value={user?.profile?.firstName || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent"
-              readOnly
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-            <input
-              type="text"
-              value={user?.profile?.lastName || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent"
-              readOnly
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input
-              type="email"
-              value={user?.email || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent"
-              readOnly
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-            <input
-              type="text"
-              value={user?.username || ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent"
-              readOnly
-            />
-          </div>
-        </div>
-        <div className="mt-6">
-          <button className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-accent/90 transition-colors">
-            Edit Profile
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -222,8 +290,6 @@ const FreelancerDashboard = () => {
         return renderActiveProjects();
       case 'earnings':
         return renderEarnings();
-      case 'profile':
-        return renderProfile();
       default:
         return renderBrowseProjects();
     }

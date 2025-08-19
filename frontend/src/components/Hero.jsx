@@ -1,10 +1,35 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
 
 const Hero = () => {
+  const navigate = useNavigate();
+
+  // Handle Get Started button click based on login status
+  const handleGetStarted = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+
+    if (!user) {
+      // Not logged in, redirect to register
+      navigate('/register');
+      return;
+    }
+
+    // User is logged in, redirect based on role
+    if (user.role === 'admin') {
+      navigate('/admin-dashboard');
+    } else if (user.role === 'client') {
+      navigate('/client');
+    } else if (user.role === 'freelancer') {
+      navigate('/freelancer');
+    } else {
+      // Fallback to register if role is unclear
+      navigate('/register');
+    }
+  };
+
   return (
     <section className="relative min-h-screen bg-white flex items-center justify-center overflow-hidden">
       {/* Background elements */}
@@ -42,8 +67,7 @@ const Hero = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
           >
             <Button
-              as={Link}
-              to="/register"
+              onClick={handleGetStarted}
               variant="primary"
               size="large"
             >
@@ -53,6 +77,7 @@ const Hero = () => {
               variant="outline"
               size="large"
               icon={<PlayIcon />}
+              onClick={() => window.open('https://youtu.be/-VaJNh5bwhM', '_blank')}
             >
               Watch Demo
             </Button>

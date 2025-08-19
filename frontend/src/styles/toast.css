@@ -1,0 +1,50 @@
+/* Custom toast styles */
+.toast-with-close {
+  position: relative;
+}
+
+/* Ensure toast animations are smooth */
+.toast-enter {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.toast-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+.toast-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-exit-active {
+  opacity: 0;
+  transform: translateX(100%);
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+/* Custom close button hover effects */
+.toast-close-btn {
+  transition: all 0.2s ease-in-out;
+}
+
+.toast-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+/* Toast container improvements */
+.toast-container {
+  z-index: 9999;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .toast-with-close {
+    margin: 0 16px;
+    max-width: calc(100vw - 32px);
+  }
+}
