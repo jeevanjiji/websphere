@@ -107,8 +107,19 @@ router.get('/my', auth(['client', 'freelancer']), async (req, res) => {
 // POST /api/projects - Create new project
 router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) => {
   console.log('🔥 CREATE PROJECT ROUTE HIT');
+  console.log('📋 Request body:', req.body);
   try {
-    const { title, description, skills, budgetType, budgetAmount, deadline } = req.body;
+    const { 
+      title, 
+      description, 
+      category,
+      categoryName,
+      image,
+      skills, 
+      budgetType, 
+      budgetAmount, 
+      deadline 
+    } = req.body;
 
     let attachmentUrls = [];
 
@@ -146,6 +157,9 @@ router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) =>
       client: req.user.userId,
       title,
       description,
+      category,
+      categoryName,
+      image,
       skills: JSON.parse(skills || '[]'),
       budgetType,
       budgetAmount,
@@ -154,6 +168,7 @@ router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) =>
     });
 
     console.log('✅ Project created:', project._id);
+    console.log('📂 Project category:', category, categoryName);
     res.status(201).json({ success: true, project });
   } catch (err) {
     console.error('❌ Create project error:', err);

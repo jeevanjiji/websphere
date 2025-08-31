@@ -37,6 +37,29 @@ const projectSchema = new mongoose.Schema(
     deadline: Date,
     attachments: [String],
     
+    // Project category and visual
+    category: {
+      type: String,
+      enum: [
+        'ui-ux-design',
+        'frontend-development', 
+        'backend-development',
+        'mobile-app-development',
+        'full-stack-development',
+        'data-science',
+        'digital-marketing',
+        'graphic-design'
+      ]
+    },
+    categoryName: {
+      type: String,
+      trim: true
+    },
+    image: {
+      type: String,
+      trim: true
+    },
+    
     status: {
       type: String,
       enum: ['open', 'in_progress', 'completed', 'cancelled'],
@@ -44,10 +67,6 @@ const projectSchema = new mongoose.Schema(
     },
     
     // Optional future fields:
-    // category: {
-    //   type: String,
-    //   enum: ['web-development', 'mobile-development', 'design', 'writing', 'marketing']
-    // },
     // priority: {
     //   type: String,
     //   enum: ['low', 'medium', 'high'],

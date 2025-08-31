@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import { Button, Card, Badge } from '../components/ui';
+import { useAuth } from '../contexts/AuthContext';
 
 const FreelancerDashboard = () => {
   const [user, setUser] = useState(null);
@@ -20,6 +21,7 @@ const FreelancerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('overview'); // 'overview' or 'projects'
   const navigate = useNavigate();
+  const { user: authUser, isAuthenticated } = useAuth();
 
   // Mock project data - replace with API call
   const mockProjects = [
@@ -185,7 +187,7 @@ const FreelancerDashboard = () => {
 
   return (
     <div className="min-h-screen bg-bg-secondary">
-      <Navbar />
+      <Navbar key={`navbar-${authUser?.id || 'anonymous'}-${isAuthenticated}`} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Section */}

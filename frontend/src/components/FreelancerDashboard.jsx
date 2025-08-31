@@ -170,45 +170,68 @@ const FreelancerDashboard = () => {
                 hover={true}
                 className="mb-6"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="heading-4">{formattedProject.title}</h3>
-                  <span className="text-sm text-gray-500">{formattedProject.postedTime}</span>
-                </div>
+                <div className="flex gap-4">
+                  {/* Project Image */}
+                  {project.image && (
+                    <div className="flex-shrink-0">
+                      <img
+                        src={project.image}
+                        alt={project.categoryName || formattedProject.title}
+                        className="w-24 h-16 rounded-lg object-cover"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Project Content */}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="heading-4">{formattedProject.title}</h3>
+                        {project.categoryName && (
+                          <span className="text-sm text-blue-600 font-medium">
+                            {project.categoryName}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-500">{formattedProject.postedTime}</span>
+                    </div>
 
-                <p className="body-regular mb-4">{formattedProject.description}</p>
+                    <p className="body-regular mb-4">{formattedProject.description}</p>
 
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {formattedProject.skills.map((skill, index) => (
-                    <Badge
-                      key={`${skill}-${index}`}
-                      variant="primary"
-                      size="small"
-                    >
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {formattedProject.skills.map((skill, index) => (
+                        <Badge
+                          key={`${skill}-${index}`}
+                          variant="primary"
+                          size="small"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
 
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span className="flex items-center gap-1">
-                      <CurrencyDollarIcon className="h-4 w-4" />
-                      {formattedProject.budget}
-                    </span>
-                    {formattedProject.deadline && (
-                      <span className="flex items-center gap-1">
-                        <ClockIcon className="h-4 w-4" />
-                        Due: {new Date(formattedProject.deadline).toLocaleDateString()}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <UserIcon className="h-4 w-4" />
-                      {formattedProject.client}
-                    </span>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                        <span className="flex items-center gap-1">
+                          <CurrencyDollarIcon className="h-4 w-4" />
+                          {formattedProject.budget}
+                        </span>
+                        {formattedProject.deadline && (
+                          <span className="flex items-center gap-1">
+                            <ClockIcon className="h-4 w-4" />
+                            Due: {new Date(formattedProject.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <UserIcon className="h-4 w-4" />
+                          {formattedProject.client}
+                        </span>
+                      </div>
+                      <Button variant="primary" size="medium">
+                        Apply Now
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="primary" size="medium">
-                    Apply Now
-                  </Button>
                 </div>
               </Card>
             );

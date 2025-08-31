@@ -3,6 +3,68 @@
   position: relative;
 }
 
+/* Add close button to all toasts */
+[data-hot-toast] {
+  position: relative !important;
+}
+
+[data-hot-toast]::after {
+  content: '×';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 20px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  color: #666;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+[data-hot-toast]::after:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: #333;
+  transform: scale(1.1);
+}
+
+/* Toast animations */
+.animate-enter {
+  animation: toast-enter 0.35s ease-out;
+}
+
+.animate-leave {
+  animation: toast-leave 0.2s ease-in;
+}
+
+@keyframes toast-enter {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-leave {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
 /* Ensure toast animations are smooth */
 .toast-enter {
   opacity: 0;
@@ -26,14 +88,23 @@
   transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
 }
 
-/* Custom close button hover effects */
+/* Custom close button styles */
 .toast-close-btn {
   transition: all 0.2s ease-in-out;
+  min-width: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .toast-close-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1);
-  transform: scale(1.1);
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: scale(1.05);
+}
+
+.toast-close-btn:active {
+  transform: scale(0.95);
 }
 
 /* Toast container improvements */
@@ -41,10 +112,28 @@
   z-index: 9999;
 }
 
+/* Custom toast shadow */
+.toast-with-close {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .toast-with-close {
     margin: 0 16px;
     max-width: calc(100vw - 32px);
+  }
+  
+  .toast-close-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  
+  [data-hot-toast]::after {
+    top: 6px;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    font-size: 14px;
   }
 }

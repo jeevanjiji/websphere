@@ -191,16 +191,27 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.success) {
-        setUser(data.user);
-        setIsAuthenticated(true);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        // Update state synchronously in the same tick
+        const userData = data.user;
+        const token = data.token;
+        
+        // Use flushSync to ensure state updates are applied immediately
+        flushSync(() => {
+          setUser(userData);
+          setIsAuthenticated(true);
+        });
+        
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
         
         // Store the JWT token for API authentication
-        if (data.token) {
-          localStorage.setItem('token', data.token);
+        if (token) {
+          localStorage.setItem('token', token);
           console.log('JWT token stored successfully from Google login');
         }
         
+        console.log('Google login successful, user state updated:', userData);
         return data;
       }
       return data;

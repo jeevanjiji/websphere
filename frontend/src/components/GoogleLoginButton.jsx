@@ -3,32 +3,23 @@ import React from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 
 const GoogleLoginButton = ({ isRegister = false }) => {
   const navigate = useNavigate();
+  const { googleLogin } = useAuth();
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
       console.log('Google OAuth Success:', credentialResponse);
 
-      const response = await fetch('http://localhost:5000/api/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          credential: credentialResponse.credential,
-          isRegister: isRegister
-        })
-      });
-
-      const data = await response.json();
+      // Use AuthContext's googleLogin method to properly update state
+      const data = await googleLogin(credentialResponse.credential);
 
       if (data.success) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-
         toast.success(isRegister ? 'Registration Successful!' : 'Login Successful!');
+
+        console.log('Google login successful, navigating based on role:', data.user.role);
 
         // Role-based redirect
         if (data.user.role === 'admin') {

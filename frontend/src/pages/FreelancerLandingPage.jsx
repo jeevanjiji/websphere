@@ -4,9 +4,11 @@ import Navbar from '../components/Navbar';
 import FreelancerHero from '../components/FreelancerHero';
 import FreelancerDashboard from '../components/FreelancerDashboard';
 import Footer from '../components/Footer';
+import { useAuth } from '../contexts/AuthContext';
 
 const FreelancerLandingPage = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -20,7 +22,7 @@ const FreelancerLandingPage = () => {
 
   return (
     <div className="freelancer-landing-page bg-bg-secondary">
-      <Navbar />
+      <Navbar key={`navbar-${user?.id || 'anonymous'}-${isAuthenticated}`} />
       <FreelancerHero />
       <FreelancerDashboard />
       <Footer />
