@@ -21,12 +21,14 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import GoogleAuthProvider from './components/GoogleOAuthProvider';
 import { AuthProvider } from './contexts/AuthContext';
+import { SocketProvider } from './contexts/SocketContext';
 
 function App() {
   return (
     <AuthProvider>
-      <GoogleAuthProvider>
-        <Router>
+      <SocketProvider>
+        <GoogleAuthProvider>
+          <Router>
           <div className="App">
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -75,6 +77,7 @@ function App() {
           />
         </Router>
       </GoogleAuthProvider>
+      </SocketProvider>
     </AuthProvider>
   );
 }

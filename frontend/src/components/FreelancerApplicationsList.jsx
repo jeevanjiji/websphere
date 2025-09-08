@@ -200,7 +200,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
                     <div className="flex items-center gap-4 text-sm text-white/80 mb-3">
                       <span className="flex items-center gap-1">
                         <CurrencyDollarIcon className="h-4 w-4" />
-                        Budget: ${application.project?.budgetAmount} ({application.project?.budgetType})
+                        Budget: Rs.{application.project?.budgetAmount} ({application.project?.budgetType})
                       </span>
                       {application.project?.deadline && (
                         <span className="flex items-center gap-1">
@@ -258,7 +258,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <span className="text-white/80 text-sm">Proposed Rate:</span>
-                      <div className="text-white font-medium">${application.proposedRate}/hour</div>
+                      <div className="text-white font-medium">Rs.{application.proposedRate}/hour</div>
                     </div>
                     <div>
                       <span className="text-white/80 text-sm">Proposed Timeline:</span>

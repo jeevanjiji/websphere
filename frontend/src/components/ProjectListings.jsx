@@ -6,7 +6,7 @@ const ProjectListings = () => {
   const projects = [
     {
       title: "E-commerce Website Development",
-      budget: "$5,000 - $8,000",
+      budget: "Rs.5,000 - Rs.8,000",
       skills: ["React", "Node.js", "MongoDB"],
       proposals: 12,
       timeAgo: "2 hours ago"

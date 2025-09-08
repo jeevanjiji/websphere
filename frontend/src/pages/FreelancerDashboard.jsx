@@ -30,7 +30,7 @@ const FreelancerDashboard = () => {
       id: 1,
       title: "E-commerce Website Development",
       description: "Looking for a skilled developer to build a modern e-commerce platform with React and Node.js. Must have experience with payment integration and responsive design.",
-      budget: "$2,500 - $5,000",
+      budget: "Rs.2,500 - Rs.5,000",
       duration: "2-3 months",
       location: "Remote",
       client: {
@@ -46,7 +46,7 @@ const FreelancerDashboard = () => {
       id: 2,
       title: "Mobile App UI/UX Design",
       description: "Need a creative designer to design a mobile app for fitness tracking. Looking for modern, clean design with excellent user experience.",
-      budget: "$1,200 - $2,000",
+      budget: "Rs.1,200 - Rs.2,000",
       duration: "3-4 weeks",
       location: "Remote",
       client: {
@@ -62,7 +62,7 @@ const FreelancerDashboard = () => {
       id: 3,
       title: "WordPress Website Redesign",
       description: "Existing WordPress site needs a complete redesign. Must be responsive, SEO-friendly, and load quickly. Experience with WooCommerce preferred.",
-      budget: "$800 - $1,500",
+      budget: "Rs.800 - Rs.1,500",
       duration: "2-3 weeks",
       location: "Remote",
       client: {
@@ -78,7 +78,7 @@ const FreelancerDashboard = () => {
       id: 4,
       title: "Data Analysis & Visualization",
       description: "Looking for a data analyst to analyze sales data and create interactive dashboards. Python and Tableau experience required.",
-      budget: "$1,500 - $3,000",
+      budget: "Rs.1,500 - Rs.3,000",
       duration: "1-2 months",
       location: "Remote",
       client: {

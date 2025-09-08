@@ -285,7 +285,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat 
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">${application.proposedRate}</span>
+                    <span className="font-medium">Rs.{application.proposedRate}</span>
                     <span className="text-gray-600">proposed rate</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">

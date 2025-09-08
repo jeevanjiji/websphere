@@ -4,6 +4,9 @@ import { motion } from 'framer-motion';
 import { GlobeAltIcon, Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
 import { useAuth } from '../contexts/AuthContext';
+import NotificationCenter from './NotificationCenter';
+import OnlineStatusIndicator from './OnlineStatusIndicator';
+import { HeaderConnectionStatus } from './ConnectionStatus';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -259,8 +262,16 @@ const Navbar = () => {
                 </Button>
               </>
             ) : (
-              <div className="relative">
-                <button
+              <div className="flex items-center gap-4">
+                {/* Connection Status */}
+                <HeaderConnectionStatus />
+                
+                {/* Notification Center */}
+                <NotificationCenter />
+                
+                {/* User Profile Dropdown */}
+                <div className="relative">
+                  <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center space-x-3 transition-colors p-2 rounded-lg hover:bg-white/90 bg-white/80 border border-white/30 shadow-sm"
                 >
@@ -309,28 +320,34 @@ const Navbar = () => {
                     {/* User Info Header */}
                     <div className="px-4 py-3 border-b border-gray-100">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-accent">
-                          {getUserProfilePicture() ? (
-                            <img
-                              src={getUserProfilePicture()}
-                              alt={getUserDisplayName()}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <span
-                            className={`text-white font-semibold ${getUserProfilePicture() ? 'hidden' : 'flex'} items-center justify-center w-full h-full`}
-                          >
-                            {getUserInitial()}
-                          </span>
+                        <div className="relative">
+                          <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-accent">
+                            {getUserProfilePicture() ? (
+                              <img
+                                src={getUserProfilePicture()}
+                                alt={getUserDisplayName()}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className={`text-white font-semibold ${getUserProfilePicture() ? 'hidden' : 'flex'} items-center justify-center w-full h-full`}
+                            >
+                              {getUserInitial()}
+                            </span>
+                          </div>
+                          <div className="absolute -bottom-0.5 -right-0.5">
+                            <OnlineStatusIndicator userId={user?._id || user?.userId || user?.id} size="sm" />
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {getUserDisplayName()}
                           </p>
+                          <OnlineStatusIndicator userId={user?._id || user?.userId || user?.id} size="xs" showText className="mt-1" />
                           <p className="text-xs text-gray-500 truncate">
                             {user?.email}
                           </p>
@@ -382,6 +399,7 @@ const Navbar = () => {
                     </div>
                   </motion.div>
                 )}
+                </div>
               </div>
             )}
           </div>

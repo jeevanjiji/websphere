@@ -42,6 +42,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     project: null
   });
   const [applications, setApplications] = useState([]);
+  const [chats, setChats] = useState([]);
   const [chatModal, setChatModal] = useState({
     isOpen: false,
     chatId: null
@@ -53,6 +54,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const tabs = [
     { id: 'browse', name: 'Browse Projects', icon: MagnifyingGlassIcon },
     { id: 'proposals', name: 'My Proposals', icon: DocumentTextIcon },
+    { id: 'messages', name: 'Messages', icon: UserIcon },
     { id: 'active', name: 'Active Projects', icon: BriefcaseIcon },
     { id: 'earnings', name: 'Earnings', icon: CurrencyDollarIcon },
   ];
@@ -102,12 +104,14 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     }
   };
 
-  // Load projects when component mounts or when activeTab changes to browse
+  // Load data when component mounts or when activeTab changes
   useEffect(() => {
     if (activeTab === 'browse') {
       fetchProjects(1, searchTerm, selectedSkills);
     } else if (activeTab === 'proposals') {
       fetchMyApplications();
+    } else if (activeTab === 'messages') {
+      fetchChats();
     }
   }, [activeTab]);
 
@@ -149,6 +153,38 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     }
   };
 
+  // Fetch chats
+  const fetchChats = async (page = 1) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to view messages');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/chats?page=${page}&limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setChats(data.chats || []);
+      } else {
+        toast.error(data.message || 'Failed to fetch messages');
+      }
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+      toast.error('Failed to load messages. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle search
   const handleSearch = () => {
     fetchProjects(1, searchTerm, selectedSkills);
@@ -165,8 +201,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const formatProject = (project) => {
     const timeAgo = new Date(project.createdAt).toLocaleDateString();
     const budget = project.budgetType === 'fixed'
-      ? `$${project.budgetAmount} (Fixed)`
-      : `$${project.budgetAmount}/hr (Hourly)`;
+      ? `Rs.${project.budgetAmount} (Fixed)`
+      : `Rs.${project.budgetAmount}/hr (Hourly)`;
 
     return {
       ...project,
@@ -410,7 +446,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                       <span className="text-sm text-gray-600">Your Proposed Rate:</span>
-                      <p className="font-semibold text-lg text-green-600">${application.proposedRate}</p>
+                      <p className="font-semibold text-lg text-green-600">Rs.{application.proposedRate}</p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Project Budget:</span>
@@ -435,8 +471,14 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                         variant="primary" 
                         size="small"
                         onClick={() => {
-                          // TODO: Open chat for this application
-                          toast.info('Chat functionality coming soon!');
+                          if (application.chatId) {
+                            setChatModal({ 
+                              isOpen: true, 
+                              chatId: application.chatId 
+                            });
+                          } else {
+                            toast.error('Chat not available for this application');
+                          }
                         }}
                       >
                         Open Chat
@@ -464,7 +506,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <CurrencyDollarIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">$0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Rs.0</h3>
         <p className="text-gray-600">Total Earnings</p>
       </div>
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
@@ -480,6 +522,76 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     </div>
   );
 
+  const renderMessages = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (chats.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <UserIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No messages yet</h3>
+          <p className="body-regular">Your conversations with clients will appear here.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {chats.map((chat) => {
+          const otherParticipant = chat.participants?.find(p => p.user._id !== user.id)?.user;
+          const lastMessage = chat.lastMessage;
+          
+          return (
+            <Card key={chat._id} className="p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => setChatModal({ isOpen: true, chatId: chat._id })}>
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0">
+                  {otherParticipant?.profilePicture ? (
+                    <img
+                      src={otherParticipant.profilePicture}
+                      alt={otherParticipant.fullName}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <UserIcon className="h-6 w-6 text-white" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-gray-900 truncate">
+                      {otherParticipant?.fullName || 'Unknown User'}
+                    </h4>
+                    <span className="text-sm text-gray-500">
+                      {lastMessage?.createdAt ? new Date(lastMessage.createdAt).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 truncate mt-1">
+                    {chat.project?.title && `Project: ${chat.project.title}`}
+                  </p>
+                  
+                  {lastMessage && (
+                    <p className="text-sm text-gray-500 truncate mt-2">
+                      {lastMessage.content}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -487,6 +599,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         return renderBrowseProjects();
       case 'proposals':
         return renderMyProposals();
+      case 'messages':
+        return renderMessages();
       case 'active':
         return renderActiveProjects();
       case 'earnings':

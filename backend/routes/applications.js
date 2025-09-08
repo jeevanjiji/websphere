@@ -493,7 +493,7 @@ router.put('/:applicationId/award', auth(['client']), async (req, res) => {
       chat: chat._id,
       sender: req.user.userId,
       messageType: 'system',
-      content: `🎉 Congratulations! Project "${application.project.title}" has been awarded to ${application.freelancer.fullName}. Final rate: $${application.proposedRate}. Timeline: ${application.proposedTimeline}`,
+      content: `🎉 Congratulations! Project "${application.project.title}" has been awarded to ${application.freelancer.fullName}. Final rate: Rs.${application.proposedRate}. Timeline: ${application.proposedTimeline}`,
       readBy: [
         {
           user: req.user.userId,

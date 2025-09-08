@@ -25,7 +25,7 @@ async function checkApplications() {
       console.log(`   Freelancer: ${app.freelancer?.fullName || 'Unknown'} (${app.freelancer?.email})`);
       console.log(`   Client: ${app.client?.fullName || 'Unknown'} (${app.client?.email})`);
       console.log(`   Status: ${app.status}`);
-      console.log(`   Proposed Rate: $${app.proposedRate}`);
+      console.log(`   Proposed Rate: Rs.${app.proposedRate}`);
       console.log(`   Created: ${app.createdAt}`);
     });
 
@@ -39,7 +39,7 @@ async function checkApplications() {
       console.log(`   Title: ${project.title}`);
       console.log(`   Client: ${project.client?.fullName || 'Unknown'} (${project.client?.email})`);
       console.log(`   Status: ${project.status}`);
-      console.log(`   Budget: $${project.budgetAmount} (${project.budgetType})`);
+      console.log(`   Budget: Rs.${project.budgetAmount} (${project.budgetType})`);
     });
 
     // Get all users

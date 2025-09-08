@@ -136,7 +136,7 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
                 />
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                Project budget: ${project?.budgetAmount} ({project?.budgetType})
+                Project budget: Rs.{project?.budgetAmount} ({project?.budgetType})
               </p>
             </div>
 

@@ -13,8 +13,19 @@ const mongoose  = require('mongoose');
 const path      = require('path');
 const session   = require('express-session');
 const MongoStore = require('connect-mongo');
+const http      = require('http');
+const socketIo  = require('socket.io');
 
 const app  = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 /* ──────────────────────────────────────────
@@ -225,9 +236,157 @@ app.use('*', (req, res) => {
 });
 
 /* ──────────────────────────────────────────
+   Socket.IO Real-Time Features
+────────────────────────────────────────── */
+
+// Store online users
+const onlineUsers = new Map();
+const typingUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('👤 User connected:', socket.id);
+
+  // Handle user joining
+  socket.on('user-online', (userId) => {
+    if (userId) {
+      console.log(`✅ User ${userId} is now online`);
+      onlineUsers.set(userId, {
+        socketId: socket.id,
+        userId: userId,
+        lastSeen: new Date()
+      });
+      
+      // Broadcast to all clients that user is online
+      socket.broadcast.emit('user-status-change', {
+        userId: userId,
+        status: 'online',
+        timestamp: new Date()
+      });
+    } else {
+      console.log('⚠️ User connected but no userId provided');
+    }
+  });
+
+  // Handle user going offline
+  socket.on('user-offline', (userId) => {
+    console.log(`❌ User ${userId} is now offline`);
+    if (onlineUsers.has(userId)) {
+      onlineUsers.delete(userId);
+      socket.broadcast.emit('user-status-change', {
+        userId: userId,
+        status: 'offline',
+        timestamp: new Date()
+      });
+    }
+  });
+
+  // Handle typing indicators
+  socket.on('typing-start', (data) => {
+    const { userId, chatId } = data;
+    typingUsers.set(`${chatId}-${userId}`, {
+      userId,
+      chatId,
+      socketId: socket.id,
+      timestamp: new Date()
+    });
+    
+    // Broadcast typing indicator to other users in the chat
+    socket.broadcast.emit('user-typing', {
+      userId,
+      chatId,
+      isTyping: true
+    });
+  });
+
+  socket.on('typing-stop', (data) => {
+    const { userId, chatId } = data;
+    typingUsers.delete(`${chatId}-${userId}`);
+    
+    // Broadcast stop typing to other users in the chat
+    socket.broadcast.emit('user-typing', {
+      userId,
+      chatId,
+      isTyping: false
+    });
+  });
+
+  // Handle new messages
+  socket.on('new-message', (messageData) => {
+    console.log('📨 New message received:', messageData);
+    
+    // Broadcast to all users (in real implementation, you'd target specific users)
+    socket.broadcast.emit('message-received', messageData);
+    
+    // Send push notification data
+    socket.broadcast.emit('notification', {
+      type: 'message',
+      title: 'New Message',
+      body: `New message from ${messageData.senderName}`,
+      chatId: messageData.chatId,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle project updates
+  socket.on('project-update', (projectData) => {
+    console.log('📋 Project update:', projectData);
+    
+    // Broadcast project status change
+    socket.broadcast.emit('project-status-change', {
+      projectId: projectData.projectId,
+      status: projectData.status,
+      updatedBy: projectData.updatedBy,
+      timestamp: new Date()
+    });
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log('👤 User disconnected:', socket.id);
+    
+    // Find and remove user from online users
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userData.socketId === socket.id) {
+        onlineUsers.delete(userId);
+        socket.broadcast.emit('user-status-change', {
+          userId: userId,
+          status: 'offline',
+          timestamp: new Date()
+        });
+        break;
+      }
+    }
+    
+    // Remove from typing users
+    for (const [key, userData] of typingUsers.entries()) {
+      if (userData.socketId === socket.id) {
+        typingUsers.delete(key);
+        socket.broadcast.emit('user-typing', {
+          userId: userData.userId,
+          chatId: userData.chatId,
+          isTyping: false
+        });
+      }
+    }
+  });
+
+  // Send current online users to newly connected client
+  socket.emit('online-users', Array.from(onlineUsers.keys()));
+});
+
+// API endpoint to get online users (for REST API access)
+app.get('/api/users/online', (req, res) => {
+  res.json({
+    success: true,
+    onlineUsers: Array.from(onlineUsers.keys()),
+    count: onlineUsers.size
+  });
+});
+
+/* ──────────────────────────────────────────
    Start Server
 ────────────────────────────────────────── */
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log('🚀 WebSphere Server Started');
   console.log(`📍 Port: ${PORT}`);
   console.log(`🔗 Test URL:  http://localhost:${PORT}/test`);

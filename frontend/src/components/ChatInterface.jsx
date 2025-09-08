@@ -36,6 +36,8 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
     scrollToBottom();
   }, [messages]);
 
+
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -112,7 +114,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
     }
 
     sendMessage({
-      content: `New offer: $${offerDetails.proposedRate} - ${offerDetails.timeline}`,
+      content: `New offer: Rs.${offerDetails.proposedRate} - ${offerDetails.timeline}`,
       messageType: 'offer',
       offerDetails: {
         proposedRate: parseFloat(offerDetails.proposedRate),
@@ -130,13 +132,17 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
   };
 
   const isCurrentUser = (senderId) => {
-    return senderId === user?.userId;
+    const currentUserId = user?.id || user?._id || user?.userId;
+    return senderId === currentUserId;
   };
 
   const getOtherParticipant = () => {
     if (!chat?.participants) return null;
-    return chat.participants.find(p => p.user._id !== user?.userId)?.user;
+    const currentUserId = user?.id || user?._id || user?.userId;
+    return chat.participants.find(p => p.user._id !== currentUserId)?.user;
   };
+
+
 
   if (!isOpen) return null;
 
@@ -199,7 +205,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1">
                 <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
-                <span>${chat.project.budgetAmount} ({chat.project.budgetType})</span>
+                <span>Rs.{chat.project.budgetAmount} ({chat.project.budgetType})</span>
               </div>
               {chat.project.deadline && (
                 <div className="flex items-center gap-1">
@@ -209,7 +215,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
               )}
               <div className="ml-auto">
                 <span className="text-gray-600">
-                  Application Rate: ${chat.application?.proposedRate}
+                  Application Rate: Rs.{chat.application?.proposedRate}
                 </span>
               </div>
             </div>
@@ -224,7 +230,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Proposed Rate ($)
+                    Proposed Rate (Rs.)
                   </label>
                   <input
                     type="number"
@@ -288,41 +294,44 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
               <p>No messages yet. Start the conversation!</p>
             </div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message._id}
-                className={`flex ${isCurrentUser(message.sender._id) ? 'justify-end' : 'justify-start'}`}
-              >
+            messages.map((message) => {
+              const isMine = isCurrentUser(message.sender._id);
+              return (
                 <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    isCurrentUser(message.sender._id)
-                      ? 'bg-blue-600 text-white'
-                      : message.messageType === 'system'
-                      ? 'bg-gray-100 text-gray-700 text-center'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
+                  key={message._id}
+                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-2`}
                 >
-                  {message.messageType === 'offer' && (
-                    <div className="mb-2 p-2 bg-green-100 rounded text-green-800 text-sm">
-                      <div className="font-medium">Offer Details:</div>
-                      <div>Rate: ${message.offerDetails?.proposedRate}</div>
-                      <div>Timeline: {message.offerDetails?.timeline}</div>
-                      {message.offerDetails?.description && (
-                        <div>Terms: {message.offerDetails.description}</div>
-                      )}
+                  <div
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      isMine
+                        ? 'bg-green-500 text-white rounded-bl-lg rounded-tl-lg rounded-tr-sm rounded-br-lg shadow-md'
+                        : message.messageType === 'system'
+                        ? 'bg-gray-100 text-gray-700 text-center'
+                        : 'bg-white text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm rounded-bl-lg shadow-md border border-gray-200'
+                    }`}
+                  >
+                    {message.messageType === 'offer' && (
+                      <div className="mb-2 p-2 bg-green-100 rounded text-green-800 text-sm">
+                        <div className="font-medium">Offer Details:</div>
+                        <div>Rate: Rs.{message.offerDetails?.proposedRate}</div>
+                        <div>Timeline: {message.offerDetails?.timeline}</div>
+                        {message.offerDetails?.description && (
+                          <div>Terms: {message.offerDetails.description}</div>
+                        )}
+                      </div>
+                    )}
+                    
+                    <p className="text-sm">{message.content}</p>
+                    
+                    <div className={`text-xs mt-1 ${
+                      isMine ? 'text-green-100' : 'text-gray-500'
+                    }`}>
+                      {formatMessageTime(message.createdAt)}
                     </div>
-                  )}
-                  
-                  <p className="text-sm">{message.content}</p>
-                  
-                  <div className={`text-xs mt-1 ${
-                    isCurrentUser(message.sender._id) ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
-                    {formatMessageTime(message.createdAt)}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>

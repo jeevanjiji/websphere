@@ -333,7 +333,7 @@ router.post('/:chatId/award', auth(['client']), async (req, res) => {
     const systemMessage = new Message({
       chat: chatId,
       sender: req.user.userId,
-      content: `Project awarded! Final rate: $${finalRate}. Timeline: ${finalTimeline}`,
+      content: `Project awarded! Final rate: Rs.${finalRate}. Timeline: ${finalTimeline}`,
       messageType: 'system',
       offerDetails: {
         proposedRate: finalRate,

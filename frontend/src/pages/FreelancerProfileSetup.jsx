@@ -729,7 +729,7 @@ const ProjectHistoryTab = ({ projectHistory }) => {
                         <span>Deadline: {formatDate(project.deadline)}</span>
                       )}
                       <span className="font-medium text-primary">
-                        ${project.budgetAmount} ({project.budgetType})
+                        Rs.{project.budgetAmount} ({project.budgetType})
                       </span>
                     </div>
 

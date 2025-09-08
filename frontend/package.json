@@ -17,8 +17,9 @@
     "google-auth-library": "^10.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-hot-toast": "^2.5.2",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.7.1",
+    "socket.io-client": "^4.8.1",
     "sweetalert2": "^11.22.2"
   },
   "devDependencies": {
