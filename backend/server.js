@@ -129,6 +129,24 @@ try {
   console.error('❌ Failed to load profile router:', err.message);
 }
 
+// Applications router
+try {
+  const applicationsRouter = require('./routes/applications');
+  app.use('/api/applications', applicationsRouter);
+  console.log('✅ Applications router connected → /api/applications');
+} catch (err) {
+  console.error('❌ Failed to load applications router:', err.message);
+}
+
+// Chat router
+try {
+  const chatRouter = require('./routes/chat');
+  app.use('/api/chats', chatRouter);
+  console.log('✅ Chat router connected → /api/chats');
+} catch (err) {
+  console.error('❌ Failed to load chat router:', err.message);
+}
+
 /* ──────────────────────────────────────────
    Health Check Route
 ────────────────────────────────────────── */

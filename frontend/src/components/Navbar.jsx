@@ -143,8 +143,16 @@ const Navbar = () => {
 
     // Handle based on user role and link type
     if (linkType === 'talent') {
-      // Find Talent - redirect to client dashboard or appropriate page
+      // Find Talent - for clients, create a freelancer browsing experience
       if (user.role === 'client') {
+        // If already on client page, don't redirect
+        if (window.location.pathname === '/client' || window.location.pathname === '/client-dashboard') {
+          // Could implement a search/filter functionality here in the future
+          // For now, just stay on the page
+          console.log('Find Talent clicked - staying on current client page');
+          return;
+        }
+        // Otherwise navigate to client dashboard
         navigate('/client');
       } else {
         navigate('/login'); // Other roles shouldn't access this

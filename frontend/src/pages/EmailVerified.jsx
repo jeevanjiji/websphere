@@ -97,7 +97,7 @@ const EmailVerified = () => {
     if (userInfo) {
       localStorage.setItem('user', JSON.stringify(userInfo));
     }
-    navigate('/freelancer-dashboard');
+    navigate('/freelancer');
   };
 
   const handleGoToLogin = () => {
@@ -163,7 +163,7 @@ const EmailVerified = () => {
             <div className="space-y-3">
               <button
                 onClick={handleContinueToDashboard}
-                className="w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+                className="w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
               >
                 Go to Dashboard
                 <ArrowRightIcon className="h-5 w-5" />
@@ -202,7 +202,7 @@ const EmailVerified = () => {
             <div className="space-y-3">
               <Link
                 to="/freelancer-registration"
-                className="block w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 hover:shadow-lg text-center"
+                className="block w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg text-center"
               >
                 Try Registration Again
               </Link>

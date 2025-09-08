@@ -11,9 +11,23 @@ import {
   UserIcon
 } from '@heroicons/react/24/outline';
 import { Button, Card, Badge } from './ui';
+import ProjectApplicationModal from './ProjectApplicationModal';
+import ChatInterface from './ChatInterface';
 
-const FreelancerDashboard = () => {
-  const [activeTab, setActiveTab] = useState('browse');
+const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
+  const [internalActiveTab, setInternalActiveTab] = useState('browse');
+  
+  // Use external activeTab if provided, otherwise use internal state
+  const activeTab = externalActiveTab !== undefined ? externalActiveTab : internalActiveTab;
+  
+  // Function to handle tab changes
+  const setActiveTab = (tab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalActiveTab(tab);
+    }
+  };
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +37,18 @@ const FreelancerDashboard = () => {
     totalPages: 1,
     totalProjects: 0
   });
+  const [applicationModal, setApplicationModal] = useState({
+    isOpen: false,
+    project: null
+  });
+  const [applications, setApplications] = useState([]);
+  const [chatModal, setChatModal] = useState({
+    isOpen: false,
+    chatId: null
+  });
+
+  // Get user from localStorage
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const tabs = [
     { id: 'browse', name: 'Browse Projects', icon: MagnifyingGlassIcon },
@@ -80,8 +106,48 @@ const FreelancerDashboard = () => {
   useEffect(() => {
     if (activeTab === 'browse') {
       fetchProjects(1, searchTerm, selectedSkills);
+    } else if (activeTab === 'proposals') {
+      fetchMyApplications();
     }
   }, [activeTab]);
+
+  // Fetch freelancer's applications
+  const fetchMyApplications = async (page = 1) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to view applications');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10'
+      });
+
+      const response = await fetch(`http://localhost:5000/api/applications/my?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setApplications(data.applications);
+        setPagination(data.pagination);
+      } else {
+        toast.error(data.message || 'Failed to fetch applications');
+      }
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+      toast.error('Failed to load applications. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle search
   const handleSearch = () => {
@@ -227,7 +293,14 @@ const FreelancerDashboard = () => {
                           {formattedProject.client}
                         </span>
                       </div>
-                      <Button variant="primary" size="medium">
+                      <Button 
+                        variant="primary" 
+                        size="medium"
+                        onClick={() => setApplicationModal({
+                          isOpen: true,
+                          project: project
+                        })}
+                      >
                         Apply Now
                       </Button>
                     </div>
@@ -266,13 +339,118 @@ const FreelancerDashboard = () => {
     </div>
   );
 
-  const renderMyProposals = () => (
-    <Card variant="default" padding="large" className="text-center">
-      <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-      <h3 className="heading-4 mb-2">No proposals yet</h3>
-      <p className="body-regular">Start applying to projects to see your proposals here.</p>
-    </Card>
-  );
+  const renderMyProposals = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (applications.length === 0) {
+      return (
+        <Card className="text-center py-12">
+          <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No applications yet</h3>
+          <p className="body-regular">Start applying to projects to see your proposals here.</p>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {applications.map((application) => {
+          const formattedProject = formatProject(application.project);
+          
+          const getStatusBadge = (status) => {
+            const statusConfig = {
+              pending: { variant: 'warning', text: 'Pending Review' },
+              accepted: { variant: 'success', text: 'Accepted' },
+              rejected: { variant: 'error', text: 'Rejected' },
+              withdrawn: { variant: 'secondary', text: 'Withdrawn' }
+            };
+            const config = statusConfig[status] || statusConfig.pending;
+            return <Badge variant={config.variant}>{config.text}</Badge>;
+          };
+
+          return (
+            <Card key={application._id} className="hover:shadow-lg transition-shadow">
+              <div className="flex gap-4">
+                {formattedProject.image && (
+                  <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
+                    <img
+                      src={formattedProject.image}
+                      alt={formattedProject.categoryName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex-1">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="heading-4">{formattedProject.title}</h3>
+                      {application.project.categoryName && (
+                        <span className="text-sm text-blue-600 font-medium">
+                          {application.project.categoryName}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(application.status)}
+                      <span className="text-sm text-gray-500">
+                        {new Date(application.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="body-regular mb-4 line-clamp-2">{formattedProject.description}</p>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <span className="text-sm text-gray-600">Your Proposed Rate:</span>
+                      <p className="font-semibold text-lg text-green-600">${application.proposedRate}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Project Budget:</span>
+                      <p className="font-semibold">{formattedProject.budget}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-4 w-4" />
+                        {application.proposedTimeline}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <UserIcon className="h-4 w-4" />
+                        {formattedProject.client}
+                      </span>
+                    </div>
+                    
+                    {application.status === 'accepted' && (
+                      <Button 
+                        variant="primary" 
+                        size="small"
+                        onClick={() => {
+                          // TODO: Open chat for this application
+                          toast.info('Chat functionality coming soon!');
+                        }}
+                      >
+                        Open Chat
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderActiveProjects = () => (
     <div className="text-center py-12">
@@ -354,6 +532,27 @@ const FreelancerDashboard = () => {
           {renderTabContent()}
         </motion.div>
       </div>
+
+      {/* Application Modal */}
+      <ProjectApplicationModal
+        project={applicationModal.project}
+        isOpen={applicationModal.isOpen}
+        onClose={() => setApplicationModal({ isOpen: false, project: null })}
+        onSuccess={() => {
+          // Refresh applications if on proposals tab
+          if (activeTab === 'proposals') {
+            fetchMyApplications();
+          }
+        }}
+      />
+
+      {/* Chat Modal */}
+      <ChatInterface
+        chatId={chatModal.chatId}
+        isOpen={chatModal.isOpen}
+        onClose={() => setChatModal({ isOpen: false, chatId: null })}
+        user={user}
+      />
     </section>
   );
 };

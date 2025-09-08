@@ -104,7 +104,7 @@ const AuthForm = ({ mode = 'login' }) => {
         } else if (data.user.role === 'admin') {
           navigate('/admin-dashboard');
         } else if (data.user.role === 'client') {
-          navigate('/client');
+          navigate('/client-dashboard');
         } else if (data.user.role === 'freelancer') {
           navigate('/freelancer');
         } else {
@@ -198,7 +198,7 @@ const AuthForm = ({ mode = 'login' }) => {
         await showAlert('success', 'Welcome to WebSphere!', data.message);
 
         if (data.user.role === 'client') {
-          navigate('/client');
+          navigate('/client-dashboard');
         } else if (data.user.role === 'freelancer') {
           navigate('/freelancer');
         }
@@ -535,7 +535,7 @@ const AuthForm = ({ mode = 'login' }) => {
                       <button
                         type="submit"
                         disabled={loading || registerData.role === 'freelancer' || !isFormValid}
-                        className="w-full bg-primary hover:bg-accent text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                        className="w-full bg-primary hover:bg-accent text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                       >
                         {loading ? (
                           <div className="flex items-center justify-center">

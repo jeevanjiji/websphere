@@ -72,15 +72,10 @@
   border-color: transparent;
 }
 
-/* Button animations */
-.hover\:scale-105:hover {
-  transform: scale(1.05);
-}
-
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+  transition-duration: 200ms;
 }
 
 .duration-200 {

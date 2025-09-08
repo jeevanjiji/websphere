@@ -27,7 +27,7 @@ const Card = ({
     large: 'p-8',
   };
   
-  const hoverClasses = hover ? 'hover:shadow-card-hover hover:-translate-y-1' : '';
+  const hoverClasses = hover ? '' : ''; // Remove conflicting CSS hover effects since we use Framer Motion
   const clickableClasses = clickable ? 'cursor-pointer' : '';
   
   const cardClasses = `

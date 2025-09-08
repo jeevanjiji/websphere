@@ -62,8 +62,29 @@ const projectSchema = new mongoose.Schema(
     
     status: {
       type: String,
-      enum: ['open', 'in_progress', 'completed', 'cancelled'],
+      enum: ['open', 'in_progress', 'completed', 'cancelled', 'awarded'],
       default: 'open'
+    },
+    
+    // Award tracking fields
+    awardedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    awardedApplication: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Application'
+    },
+    finalRate: {
+      type: Number,
+      min: 0
+    },
+    finalTimeline: {
+      type: String,
+      trim: true
+    },
+    awardedAt: {
+      type: Date
     },
     
     // Optional future fields:
@@ -79,10 +100,6 @@ const projectSchema = new mongoose.Schema(
     // viewsCount: {
     //   type: Number,
     //   default: 0
-    // },
-    // awardedTo: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: 'User'
     // }
   },
   { timestamps: true }

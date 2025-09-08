@@ -10,16 +10,16 @@ import {
   ClockIcon,
   CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
-import Button from './ui/Button';
-import Card from './ui/Card';
-import Badge from './ui/Badge';
-import ProjectApplicationsList from './ProjectApplicationsList';
-import ChatInterface from './ChatInterface';
-import PostProjectForm from './PostProjectForm';
+import Navbar from '../components/Navbar';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import ProjectApplicationsList from '../components/ProjectApplicationsList';
+import ChatInterface from '../components/ChatInterface';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
-const ClientDashboard = ({ showForm, setShowForm }) => {
+const ClientDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('projects');
   const [projects, setProjects] = useState([]);
@@ -138,7 +138,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
           </p>
           <Button
             variant="primary"
-            onClick={() => setShowForm(true)}
+            onClick={() => navigate('/post-project')}
             className="flex items-center gap-2"
           >
             <PlusIcon className="h-5 w-5" />
@@ -210,7 +210,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
             variant="primary"
             onClick={() => {
               setActiveTab('projects');
-              setShowForm(true);
+              navigate('/post-project');
             }}
             className="flex items-center gap-2"
           >
@@ -220,6 +220,8 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         </div>
       );
     }
+
+    console.log('📱 Rendering applications for project:', selectedProject.title, selectedProject._id);
 
     return (
       <div>
@@ -288,93 +290,64 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     }
   };
 
-
-  const handleProjectSuccess = (newProject) => {
-    console.log('Project created successfully:', newProject);
-    setShowForm(false);
-    fetchMyProjects(); // Refresh the project list
-    toast.success('Project posted successfully! Your project is now live and visible to freelancers.');
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Client Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage your projects and find talented freelancers</p>
-            </div>
-            <Button
-              variant="primary"
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Post New Project
-            </Button>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="font-medium">{tab.name}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {renderTabContent()}
-        </motion.div>
-      </main>
-
-      {/* Modal for Post Project Form */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Post a New Project</h2>
-                <button 
-                  onClick={() => {
-                    console.log('Close button clicked'); // Debug log
-                    setShowForm(false);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+      {/* Navbar */}
+      <Navbar />
+      
+      {/* Main Content with proper top padding for fixed navbar */}
+      <main className="pt-16 min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Page Header */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Client Dashboard</h1>
+                <p className="text-gray-600 mt-1">Manage your projects and find talented freelancers</p>
               </div>
-              
-              <PostProjectForm onSuccess={handleProjectSuccess} />
+              <Button
+                variant="primary"
+                onClick={() => navigate('/post-project')}
+                className="flex items-center gap-2"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Post New Project
+              </Button>
             </div>
           </div>
+
+          {/* Tab Navigation */}
+          <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{tab.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab Content */}
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {renderTabContent()}
+          </motion.div>
         </div>
-      )}
+      </main>
 
       {/* Chat Modal */}
       <ChatInterface

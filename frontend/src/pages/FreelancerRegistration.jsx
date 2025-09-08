@@ -305,7 +305,7 @@ const FreelancerRegistration = () => {
               <button
                 type="submit"
                 disabled={!isFormValid}
-                className="w-full font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 bg-primary hover:bg-primary/90 text-white hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="w-full font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 bg-primary hover:bg-primary/90 text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next Step
               </button>

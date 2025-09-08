@@ -14,12 +14,13 @@ import {
 import Navbar from '../components/Navbar';
 import { Button, Card, Badge } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
+import FreelancerApplicationsList from '../components/FreelancerApplicationsList';
 
 const FreelancerDashboard = () => {
   const [user, setUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('overview'); // 'overview' or 'projects'
+  const [activeView, setActiveView] = useState('overview'); // 'overview', 'projects', or 'applications'
   const navigate = useNavigate();
   const { user: authUser, isAuthenticated } = useAuth();
 
@@ -206,8 +207,8 @@ const FreelancerDashboard = () => {
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1 }}
+              whileTap={{ scale: 1 }}
               onClick={() => setActiveView('projects')}
               className="bg-accent hover:bg-accent/90 text-white px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors"
             >
@@ -215,8 +216,9 @@ const FreelancerDashboard = () => {
               Find Projects
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1 }}
+              whileTap={{ scale: 1 }}
+              onClick={() => setActiveView('applications')}
               className="bg-white/20 hover:bg-white/30 text-white px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors backdrop-blur-sm"
             >
               <DocumentTextIcon className="h-5 w-5" />
@@ -242,6 +244,16 @@ const FreelancerDashboard = () => {
                 <ProjectCard key={project.id} project={project} />
               ))}
             </div>
+          </motion.div>
+        )}
+
+        {/* Applications Section */}
+        {activeView === 'applications' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <FreelancerApplicationsList />
           </motion.div>
         )}
       </div>

@@ -148,7 +148,7 @@ const PostProjectForm = ({ onSuccess }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/projects', {
+      const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -164,6 +164,7 @@ const PostProjectForm = ({ onSuccess }) => {
         setFormData({
           title: '',
           description: '',
+          category: '',
           skills: '',
           budgetType: 'fixed',
           budgetAmount: '',

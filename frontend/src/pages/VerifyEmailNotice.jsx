@@ -109,7 +109,7 @@ const VerifyEmailNotice = () => {
             <button
               onClick={handleResendVerification}
               disabled={resending || resent}
-              className="w-full bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 hover:shadow-lg disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {resending ? (
                 <>
@@ -139,7 +139,7 @@ const VerifyEmailNotice = () => {
               {devVerificationUrl && (
                 <button
                   onClick={() => window.open(devVerificationUrl, '_blank')}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   <CheckCircleIcon className="h-5 w-5" />
                   Verify Account (Development)

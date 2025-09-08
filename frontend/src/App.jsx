@@ -13,6 +13,7 @@ import FreelancerLandingPage from './pages/FreelancerLandingPage';
 import FreelancerProfileSetup from './pages/FreelancerProfileSetup';
 
 import FreelancerDashboard from './pages/FreelancerDashboard';
+import ClientDashboard from './pages/ClientDashboard';
 import TestPage from './pages/TestPage';
 import VerifyEmailNotice from './pages/VerifyEmailNotice';
 import EmailVerified from './pages/EmailVerified';
@@ -37,7 +38,7 @@ function App() {
           <Route path="/client" element={<ClientLandingPage />} />
           <Route path="/freelancer" element={<FreelancerLandingPage />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
-          <Route path="/freelancer-dashboard" element={<FreelancerDashboard />} />
+          <Route path="/client-dashboard" element={<ClientDashboard />} />
           <Route path="/freelancer-profile-setup" element={<FreelancerProfileSetup />} />
           <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
           <Route path="/verify-email" element={<EmailVerified />} />

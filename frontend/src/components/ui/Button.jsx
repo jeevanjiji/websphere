@@ -88,8 +88,8 @@ const Button = ({
       className={buttonClasses}
       disabled={disabled || loading}
       onClick={onClick}
-      whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
-      whileTap={{ scale: disabled || loading ? 1 : 0.98 }}
+      whileHover={{ scale: 1 }}
+      whileTap={{ scale: 1 }}
       transition={{ duration: 0.1 }}
       {...props}
     >

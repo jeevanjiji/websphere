@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { MagnifyingGlassIcon, BriefcaseIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
 
-const FreelancerHero = () => {
+const FreelancerHero = ({ onTabNavigation }) => {
   const user = JSON.parse(localStorage.getItem('user'));
 
   return (
@@ -43,6 +43,7 @@ const FreelancerHero = () => {
               variant="primary"
               size="large"
               icon={<MagnifyingGlassIcon />}
+              onClick={() => onTabNavigation && onTabNavigation('browse')}
             >
               Find Projects
             </Button>
@@ -50,6 +51,7 @@ const FreelancerHero = () => {
               variant="outline"
               size="large"
               icon={<BriefcaseIcon />}
+              onClick={() => onTabNavigation && onTabNavigation('proposals')}
             >
               My Proposals
             </Button>
