@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GlobeAltIcon, Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import NotificationCenter from './NotificationCenter';
 import OnlineStatusIndicator from './OnlineStatusIndicator';
 import { HeaderConnectionStatus } from './ConnectionStatus';
+import { TourButton } from './ClientTour';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -15,6 +16,7 @@ const Navbar = () => {
 
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Debug authentication state
   useEffect(() => {
@@ -266,11 +268,18 @@ const Navbar = () => {
                 {/* Connection Status */}
                 <HeaderConnectionStatus />
                 
+                {/* Tour Button for Clients - Only on Dashboard */}
+                {user?.role === 'client' && (location.pathname === '/client' || location.pathname === '/client-dashboard') && (
+                  <TourButton onClick={() => window.startClientTour && window.startClientTour()} />
+                )}
+                
                 {/* Notification Center */}
-                <NotificationCenter />
+                <div className="notification-center">
+                  <NotificationCenter />
+                </div>
                 
                 {/* User Profile Dropdown */}
-                <div className="relative">
+                <div className="relative user-menu">
                   <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center space-x-3 transition-colors p-2 rounded-lg hover:bg-white/90 bg-white/80 border border-white/30 shadow-sm"

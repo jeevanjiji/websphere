@@ -16,7 +16,8 @@ import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import ProjectApplicationsList from '../components/ProjectApplicationsList';
 import ChatInterface from '../components/ChatInterface';
-import PostProjectForm from '../components/PostProjectForm';
+import SimplePostProjectForm from '../components/SimplePostProjectForm';
+import ClientTour from '../components/ClientTour';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -25,14 +26,15 @@ const ClientDashboard = () => {
   const [activeTab, setActiveTab] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [chatModal, setChatModal] = useState({
     isOpen: false,
     chatId: null
   });
+  const [runTour, setRunTour] = useState(false);
 
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   const tabs = [
     { id: 'projects', name: 'My Projects', icon: BriefcaseIcon },
@@ -42,7 +44,7 @@ const ClientDashboard = () => {
 
   const fetchMyProjects = useCallback(async () => {
     try {
-      setLoading(true);
+      setProjectsLoading(true);
       const token = localStorage.getItem('token');
       const response = await fetch('/api/projects/my', {
         headers: {
@@ -63,17 +65,56 @@ const ClientDashboard = () => {
       toast.error('Failed to load projects');
       setProjects([]);
     } finally {
-      setLoading(false);
+      setProjectsLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    // Don't redirect if auth is still loading
+    if (authLoading) return;
+    
     if (!isAuthenticated || !user || user.role !== 'client') {
+      console.log('🔒 Redirecting to login:', { isAuthenticated, user: user?.role, authLoading });
       navigate('/login');
       return;
     }
     fetchMyProjects();
-  }, [navigate, isAuthenticated, user, fetchMyProjects]);
+  }, [navigate, isAuthenticated, user, fetchMyProjects, authLoading]);
+
+  // Tour functionality
+  useEffect(() => {
+    console.log('🎯 Tour useEffect triggered', { user: user?.role, hasSeenTour: localStorage.getItem('client-tour-completed') });
+    
+    // Check if this is the first time visiting dashboard
+    const hasSeenTour = localStorage.getItem('client-tour-completed');
+    
+    if (!hasSeenTour && user?.role === 'client') {
+      console.log('🎯 Starting tour for new client...');
+      // Show tour after a short delay to let the page load
+      const timer = setTimeout(() => {
+        console.log('🎯 Setting runTour to true');
+        setRunTour(true);
+      }, 2000); // Increased delay
+      
+      return () => clearTimeout(timer);
+    }
+
+    // Set up global function to trigger tour from navbar
+    window.startClientTour = () => {
+      console.log('🎯 Manual tour trigger from navbar');
+      setRunTour(true);
+    };
+
+    return () => {
+      delete window.startClientTour;
+    };
+  }, [user]);
+
+  const handleTourEnd = () => {
+    console.log('🎯 Tour ended');
+    setRunTour(false);
+    localStorage.setItem('client-tour-completed', 'true');
+  };
 
   const handleApplicationResponse = async (applicationId, status) => {
     try {
@@ -122,7 +163,7 @@ const ClientDashboard = () => {
   };
 
   const renderProjects = () => {
-    if (loading) {
+    if (projectsLoading) {
       return (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -151,7 +192,7 @@ const ClientDashboard = () => {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 project-cards">
         {projects.map((project) => (
           <Card key={project._id} className="relative">
             <div className="flex justify-between items-start mb-4">
@@ -299,6 +340,18 @@ const ClientDashboard = () => {
     toast.success('Project posted successfully! Your project is now live and visible to freelancers.');
   };
 
+  // Show loading screen while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
@@ -308,7 +361,7 @@ const ClientDashboard = () => {
       <main className="pt-16 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page Header */}
-          <div className="mb-8">
+          <div className="mb-8 client-dashboard-welcome">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Client Dashboard</h1>
@@ -317,7 +370,7 @@ const ClientDashboard = () => {
               <Button
                 variant="primary"
                 onClick={() => setShowForm(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 post-project-btn"
               >
                 <PlusIcon className="h-5 w-5" />
                 Post New Project
@@ -326,7 +379,7 @@ const ClientDashboard = () => {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8">
+          <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8 dashboard-tabs">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -358,30 +411,12 @@ const ClientDashboard = () => {
         </div>
       </main>
 
-      {/* Modal for Post Project Form */}
+      {/* Simplified Post Project Form */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Post a New Project</h2>
-                <button 
-                  onClick={() => {
-                    console.log('Close button clicked'); // Debug log
-                    setShowForm(false);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <PostProjectForm onSuccess={handleProjectSuccess} />
-            </div>
-          </div>
-        </div>
+        <SimplePostProjectForm 
+          onSuccess={handleProjectSuccess} 
+          onClose={() => setShowForm(false)}
+        />
       )}
 
       {/* Chat Modal */}
@@ -391,6 +426,9 @@ const ClientDashboard = () => {
         onClose={() => setChatModal({ isOpen: false, chatId: null })}
         user={user}
       />
+
+      {/* Client Tour */}
+      <ClientTour runTour={runTour} onTourEnd={handleTourEnd} />
     </div>
   );
 };

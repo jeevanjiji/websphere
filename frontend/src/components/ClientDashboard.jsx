@@ -15,7 +15,8 @@ import Card from './ui/Card';
 import Badge from './ui/Badge';
 import ProjectApplicationsList from './ProjectApplicationsList';
 import ChatInterface from './ChatInterface';
-import PostProjectForm from './PostProjectForm';
+import SimplePostProjectForm from './SimplePostProjectForm';
+import ClientTour from './ClientTour';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -29,6 +30,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     isOpen: false,
     chatId: null
   });
+  const [runTour, setRunTour] = useState(false);
 
   const { user, isAuthenticated } = useAuth();
 
@@ -72,6 +74,41 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     }
     fetchMyProjects();
   }, [navigate, isAuthenticated, user, fetchMyProjects]);
+
+  // Tour functionality
+  useEffect(() => {
+    console.log('🎯 Tour useEffect triggered', { user: user?.role, hasSeenTour: localStorage.getItem('client-tour-completed') });
+    
+    // Check if this is the first time visiting dashboard
+    const hasSeenTour = localStorage.getItem('client-tour-completed');
+    
+    if (!hasSeenTour && user?.role === 'client') {
+      console.log('🎯 Starting tour for new client...');
+      // Show tour after a short delay to let the page load
+      const timer = setTimeout(() => {
+        console.log('🎯 Setting runTour to true');
+        setRunTour(true);
+      }, 2000); // Increased delay
+      
+      return () => clearTimeout(timer);
+    }
+
+    // Set up global function to trigger tour from navbar
+    window.startClientTour = () => {
+      console.log('🎯 Manual tour trigger from navbar');
+      setRunTour(true);
+    };
+
+    return () => {
+      delete window.startClientTour;
+    };
+  }, [user]);
+
+  const handleTourEnd = () => {
+    console.log('🎯 Tour ended');
+    setRunTour(false);
+    localStorage.setItem('client-tour-completed', 'true');
+  };
 
   const handleApplicationResponse = async (applicationId, status) => {
     try {
@@ -149,7 +186,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 project-cards">
         {projects.map((project) => (
           <Card key={project._id} className="relative">
             <div className="flex justify-between items-start mb-4">
@@ -301,7 +338,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
         {/* Page Header */}
-        <div className="mb-8">
+        <div className="mb-8 client-dashboard-welcome">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Client Dashboard</h1>
@@ -310,7 +347,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
             <Button
               variant="primary"
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 post-project-btn"
             >
               <PlusIcon className="h-5 w-5" />
               Post New Project
@@ -319,7 +356,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8">
+        <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm mb-8 dashboard-tabs">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -350,30 +387,12 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         </motion.div>
       </main>
 
-      {/* Modal for Post Project Form */}
+      {/* Simplified Post Project Form */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Post a New Project</h2>
-                <button 
-                  onClick={() => {
-                    console.log('Close button clicked'); // Debug log
-                    setShowForm(false);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <PostProjectForm onSuccess={handleProjectSuccess} />
-            </div>
-          </div>
-        </div>
+        <SimplePostProjectForm 
+          onSuccess={handleProjectSuccess} 
+          onClose={() => setShowForm(false)}
+        />
       )}
 
       {/* Chat Modal */}
@@ -383,6 +402,9 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         onClose={() => setChatModal({ isOpen: false, chatId: null })}
         user={user}
       />
+
+      {/* Client Tour */}
+      <ClientTour runTour={runTour} onTourEnd={handleTourEnd} />
     </div>
   );
 };
