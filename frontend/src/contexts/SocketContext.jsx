@@ -76,7 +76,8 @@ export const SocketProvider = ({ children }) => {
         
         // Show toast notification
         toast.success(notification.body, {
-          duration: 4000,
+          duration: 5000, // 5 seconds for notifications
+          dismissible: true,
           position: 'top-right',
           icon: '💬',
         });
@@ -103,7 +104,8 @@ export const SocketProvider = ({ children }) => {
       newSocket.on('project-status-change', (data) => {
         console.log('📋 Project status changed:', data);
         toast.success(`Project status updated: ${data.status}`, {
-          duration: 3000,
+          duration: 4000, // 4 seconds for project updates
+          dismissible: true,
           icon: '📋',
         });
       });

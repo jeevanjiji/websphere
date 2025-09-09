@@ -25,8 +25,9 @@ const EmailVerified = () => {
 
   const verifyEmail = async (token) => {
     try {
-      // For development, if token looks like an email, use dev verification
-      const isEmail = token.includes('@');
+      // Check if token is actually an email (from dev verification URLs)
+      // Dev URLs have format: /verify-email?token=user@example.com
+      const isEmail = token.includes('@') && !token.includes('%40'); // %40 is URL encoded @
       const url = isEmail
         ? `http://localhost:5000/api/auth/dev-verify/${token}`
         : `http://localhost:5000/api/auth/verify-email/${token}`;
@@ -78,7 +79,7 @@ const EmailVerified = () => {
 
         // Show success notification
         setTimeout(() => {
-          toast.success('Email verified! Your account has been successfully verified. Welcome to WebSphere!');
+          toast.success('Email verified! Your account has been successfully verified. Welcome to WebSphere!', { dismissible: true });
         }, 1000);
         
       } else {

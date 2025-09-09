@@ -119,10 +119,10 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Proposed Rate (USD) *
+                Proposed Rate (INR) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
                 <input
                   type="number"
                   name="proposedRate"

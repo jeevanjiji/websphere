@@ -75,12 +75,12 @@ const ResetPassword = () => {
       const data = await response.json();
 
       if (data.success) {
-        toast.success('Password Reset Successful! You can now login with your new password.');
+        toast.success('Password Reset Successful! You can now login with your new password.', { dismissible: true });
         setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {
-        toast.error(data.message || 'Failed to reset password. The link may be expired or invalid.');
+        toast.error(data.message || 'Failed to reset password. The link may be expired or invalid.', { dismissible: true });
       }
     } catch (error) {
       console.error('Reset password error:', error);

@@ -72,6 +72,20 @@ const PostProjectForm = ({ onSuccess }) => {
       description: 'Visual design and branding',
       image: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&h=200&fit=crop&crop=center',
       skills: ['Photoshop', 'Illustrator', 'InDesign', 'Branding', 'Logo Design']
+    },
+    {
+      id: 'content-writing',
+      name: 'Content Writing',
+      description: 'Articles, blogs, and copywriting',
+      image: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=400&h=200&fit=crop&crop=center',
+      skills: ['Content Writing', 'Copywriting', 'Blog Writing', 'SEO Writing', 'Technical Writing']
+    },
+    {
+      id: 'other',
+      name: 'Other Services',
+      description: 'Custom projects and specialized services',
+      image: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=400&h=200&fit=crop&crop=center',
+      skills: ['Custom Solutions', 'Consulting', 'Project Management', 'Other']
     }
   ];
 

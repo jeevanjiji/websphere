@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { showToast } from '../utils/toast.jsx';
 import GoogleLoginButton from './GoogleLoginButton';
 import ValidatedInput from './ValidatedInput';
 import PasswordStrengthIndicator from './PasswordStrengthIndicator';
@@ -66,15 +67,15 @@ const AuthForm = ({ mode = 'login' }) => {
 
     switch (type) {
       case 'success':
-        return toast.success(message);
+        return toast.success(message, { dismissible: true });
       case 'error':
-        return toast.error(message);
+        return toast.error(message, { dismissible: true });
       case 'warning':
-        return toast.error(message); // Use error styling for warnings
+        return toast.error(message, { dismissible: true }); // Use error styling for warnings
       case 'info':
-        return toast(message); // Default toast for info
+        return toast(message, { dismissible: true }); // Default toast for info
       default:
-        return toast(message);
+        return toast(message, { dismissible: true });
     }
   };
 
@@ -94,7 +95,8 @@ const AuthForm = ({ mode = 'login' }) => {
       const data = await login(loginData);
 
       if (data.success) {
-        await showAlert('success', 'Login Successful!', data.message);
+        // Use the dismissible toast utility
+        showToast.dismissible('Login Successful!', 'success', { id: 'login-success' });
 
         console.log('Login successful, navigating based on role:', data.user.role);
 
@@ -104,7 +106,7 @@ const AuthForm = ({ mode = 'login' }) => {
         } else if (data.user.role === 'admin') {
           navigate('/admin-dashboard');
         } else if (data.user.role === 'client') {
-          navigate('/client-dashboard');
+          navigate('/client');
         } else if (data.user.role === 'freelancer') {
           navigate('/freelancer');
         } else {
@@ -115,7 +117,7 @@ const AuthForm = ({ mode = 'login' }) => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      showAlert('error', 'Connection Error', 'Server not responding. Please make sure the backend is running on port 5000.');
+      // Don't show connection error popup - just log it
     } finally {
       setLoading(false);
     }
@@ -198,7 +200,7 @@ const AuthForm = ({ mode = 'login' }) => {
         await showAlert('success', 'Welcome to WebSphere!', data.message);
 
         if (data.user.role === 'client') {
-          navigate('/client-dashboard');
+          navigate('/client');
         } else if (data.user.role === 'freelancer') {
           navigate('/freelancer');
         }
@@ -209,7 +211,7 @@ const AuthForm = ({ mode = 'login' }) => {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      showAlert('error', 'Connection Error', 'Server not responding. Please make sure the backend is running on port 5000.');
+      // Don't show connection error popup - just log it
     } finally {
       setLoading(false);
     }
@@ -503,7 +505,7 @@ const AuthForm = ({ mode = 'login' }) => {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+                          className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 z-10 h-12 flex items-center"
                         >
                           {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                         </button>
@@ -526,7 +528,7 @@ const AuthForm = ({ mode = 'login' }) => {
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+                          className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 z-10 h-12 flex items-center"
                         >
                           {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                         </button>

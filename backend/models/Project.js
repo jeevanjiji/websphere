@@ -48,7 +48,9 @@ const projectSchema = new mongoose.Schema(
         'full-stack-development',
         'data-science',
         'digital-marketing',
-        'graphic-design'
+        'graphic-design',
+        'content-writing',
+        'other'
       ]
     },
     categoryName: {

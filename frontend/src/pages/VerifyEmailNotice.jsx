@@ -43,13 +43,13 @@ const VerifyEmailNotice = () => {
 
       if (data.success) {
         setResent(true);
-        toast.success('Email Sent! Verification email has been resent to your inbox.');
+        toast.success('Email Sent! Verification email has been resent to your inbox.', { dismissible: true });
       } else {
-        toast.error(data.message || 'Failed to resend verification email.');
+        toast.error(data.message || 'Failed to resend verification email.', { dismissible: true });
       }
     } catch (error) {
       console.error('Resend verification error:', error);
-      toast.error('Unable to resend email. Please try again.');
+      toast.error('Unable to resend email. Please try again.', { dismissible: true });
     } finally {
       setResending(false);
     }

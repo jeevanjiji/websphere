@@ -3,6 +3,7 @@ import React from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { showToast } from '../utils/toast.jsx';
 import { useAuth } from '../contexts/AuthContext';
 
 const GoogleLoginButton = ({ isRegister = false }) => {
@@ -17,7 +18,12 @@ const GoogleLoginButton = ({ isRegister = false }) => {
       const data = await googleLogin(credentialResponse.credential);
 
       if (data.success) {
-        toast.success(isRegister ? 'Registration Successful!' : 'Login Successful!');
+        // Use the dismissible toast utility
+        showToast.dismissible(
+          isRegister ? 'Registration Successful!' : 'Login Successful!', 
+          'success', 
+          { id: 'google-login-success' }
+        );
 
         console.log('Google login successful, navigating based on role:', data.user.role);
 
@@ -32,17 +38,25 @@ const GoogleLoginButton = ({ isRegister = false }) => {
           navigate('/');
         }
       } else {
-        toast.error(data.message || 'Authentication Failed');
+        showToast.dismissible(
+          data.message || 'Authentication Failed', 
+          'error', 
+          { id: 'google-login-error' }
+        );
       }
     } catch (error) {
       console.error('Google OAuth Error:', error);
-      toast.error('Unable to connect to server');
+      // Don't show connection error popup - just log it
     }
   };
 
   const handleGoogleError = () => {
     console.error('Google OAuth Error');
-    toast.error('Google Authentication Failed. Please try again or use email/password login');
+    showToast.dismissible(
+      'Google Authentication Failed. Please try again or use email/password login', 
+      'error', 
+      { id: 'google-login-general-error' }
+    );
   };
 
   return (

@@ -8,30 +8,43 @@
   position: relative !important;
 }
 
-[data-hot-toast]::after {
-  content: '×';
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  width: 20px;
-  height: 20px;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  color: #666;
-  transition: all 0.2s ease;
-  z-index: 10;
+/* Style the close button that react-hot-toast provides */
+[data-hot-toast] [data-hot-toast-close],
+[data-hot-toast] button[aria-label="Close"],
+[data-hot-toast] .toast-close-button {
+  position: absolute !important;
+  top: 8px !important;
+  right: 12px !important;
+  width: 20px !important;
+  height: 20px !important;
+  background: rgba(0, 0, 0, 0.1) !important;
+  border: none !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  color: #666 !important;
+  transition: all 0.2s ease !important;
+  z-index: 10 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-[data-hot-toast]::after:hover {
-  background: rgba(0, 0, 0, 0.2);
-  color: #333;
-  transform: scale(1.1);
+[data-hot-toast] [data-hot-toast-close]:hover,
+[data-hot-toast] button[aria-label="Close"]:hover,
+[data-hot-toast] .toast-close-button:hover {
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: #333 !important;
+  transform: scale(1.1) !important;
+}
+
+[data-hot-toast] [data-hot-toast-close]:active,
+[data-hot-toast] button[aria-label="Close"]:active,
+[data-hot-toast] .toast-close-button:active {
+  transform: scale(0.95) !important;
 }
 
 /* Toast animations */

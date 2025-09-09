@@ -14,7 +14,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     
     if (!email.trim()) {
-      toast.error('Please enter your email address.');
+      toast.error('Please enter your email address.', { dismissible: true });
       return;
     }
 
@@ -33,13 +33,13 @@ const ForgotPassword = () => {
 
       if (data.success) {
         setEmailSent(true);
-        toast.success('Reset Link Sent! If an account with that email exists, we have sent a password reset link.');
+        toast.success('Reset Link Sent! If an account with that email exists, we have sent a password reset link.', { dismissible: true });
       } else {
-        toast.error(data.message || 'Failed to send reset email. Please try again.');
+        toast.error(data.message || 'Failed to send reset email. Please try again.', { dismissible: true });
       }
     } catch (error) {
       console.error('Forgot password error:', error);
-      toast.error('Unable to connect to the server. Please try again.');
+      toast.error('Unable to connect to the server. Please try again.', { dismissible: true });
     } finally {
       setIsLoading(false);
     }

@@ -24,31 +24,37 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
   // Simplified categories - only the essentials
   const projectCategories = [
     {
-      id: 'website',
+      id: 'full-stack-development',
       name: 'Website Development',
       description: 'Create or improve a website',
       icon: '🌐'
     },
     {
-      id: 'mobile-app',
+      id: 'mobile-app-development',
       name: 'Mobile App',
       description: 'Build an app for phones/tablets',
       icon: '📱'
     },
     {
-      id: 'design',
-      name: 'Design Work',
-      description: 'Logos, graphics, UI design',
+      id: 'ui-ux-design',
+      name: 'UI/UX Design',
+      description: 'User interface and experience design',
       icon: '🎨'
     },
     {
-      id: 'writing',
+      id: 'graphic-design',
+      name: 'Graphic Design',
+      description: 'Logos, graphics, visual design',
+      icon: '🎨'
+    },
+    {
+      id: 'content-writing',
       name: 'Content Writing',
       description: 'Articles, blogs, copywriting',
       icon: '✍️'
     },
     {
-      id: 'marketing',
+      id: 'digital-marketing',
       name: 'Marketing & SEO',
       description: 'Promote your business online',
       icon: '📈'

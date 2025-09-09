@@ -138,69 +138,56 @@ const Navbar = () => {
     return null;
   };
 
-  // Handle navigation clicks based on user authentication and role
+  // Handle navigation clicks - based on user role and authentication status
   const handleNavClick = (linkType) => {
-    if (!user) {
-      // Not logged in, redirect to login
-      navigate('/login');
-      return;
-    }
-
-    // Handle based on user role and link type
     if (linkType === 'talent') {
-      // Find Talent - for clients, create a freelancer browsing experience
-      if (user.role === 'client') {
-        // If already on client page, don't redirect
-        if (window.location.pathname === '/client' || window.location.pathname === '/client-dashboard') {
-          // Could implement a search/filter functionality here in the future
-          // For now, just stay on the page
-          console.log('Find Talent clicked - staying on current client page');
-          return;
-        }
-        // Otherwise navigate to client dashboard
+      // Find Talent - go to client dashboard/page
+      if (user && user.role === 'client') {
         navigate('/client');
       } else {
-        navigate('/login'); // Other roles shouldn't access this
+        // Show general "hire talent" information for non-clients
+        navigate('/register'); // They can register as client
       }
     } else if (linkType === 'work') {
-      // Find Work - redirect to freelancer dashboard or appropriate page
-      if (user.role === 'freelancer') {
+      // Find Work behavior based on authentication
+      if (!isAuthenticated) {
+        // Not logged in - redirect to login
+        navigate('/login');
+      } else if (user && user.role === 'freelancer') {
+        // Freelancer logged in - go to freelancer dashboard
         navigate('/freelancer');
       } else {
-        navigate('/login'); // Other roles shouldn't access this
+        // Other roles - redirect to login
+        navigate('/login');
       }
+    } else if (linkType === 'why') {
+      // Why WebSphere - accessible to all
+      navigate('/why-websphere');
     }
   };
 
-  // Get navigation links based on user role
+  // Get navigation links - conditional based on authentication status and user role
   const getNavLinks = () => {
-    const baseLinks = [
-      { name: 'Why WebSphere?', href: '#why', type: 'static' },
+    const links = [
+      { name: 'Why WebSphere?', onClick: () => handleNavClick('why'), type: 'action' },
     ];
 
-    if (!user) {
-      // Not logged in - show both options
-      return [
-        { name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' },
-        { name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' },
-        ...baseLinks
-      ];
-    } else if (user.role === 'client') {
-      // Client logged in - show only Find Talent
-      return [
-        { name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' },
-        ...baseLinks
-      ];
-    } else if (user.role === 'freelancer') {
-      // Freelancer logged in - show only Find Work
-      return [
-        { name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' },
-        ...baseLinks
-      ];
+    if (!isAuthenticated) {
+      // Not logged in: show both Find Talent and Find Work
+      links.unshift({ name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' });
+      links.unshift({ name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' });
+    } else if (user && user.role === 'freelancer') {
+      // Freelancer logged in: hide Find Talent, show Find Work (goes to dashboard)
+      links.unshift({ name: 'Find Work', onClick: () => handleNavClick('work'), type: 'action' });
+    } else if (user && user.role === 'client') {
+      // Client logged in: show Find Talent, hide Find Work
+      links.unshift({ name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' });
     } else {
-      // Admin or other roles - show basic links
-      return baseLinks;
+      // Other roles (admin, etc.): show Find Talent only
+      links.unshift({ name: 'Find Talent', onClick: () => handleNavClick('talent'), type: 'action' });
     }
+
+    return links;
   };
 
   const navLinks = getNavLinks();
@@ -269,7 +256,7 @@ const Navbar = () => {
                 <HeaderConnectionStatus />
                 
                 {/* Tour Button for Clients - Only on Dashboard */}
-                {user?.role === 'client' && (location.pathname === '/client' || location.pathname === '/client-dashboard') && (
+                {user?.role === 'client' && location.pathname === '/client' && (
                   <TourButton onClick={() => window.startClientTour && window.startClientTour()} />
                 )}
                 

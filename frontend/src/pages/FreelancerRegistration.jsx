@@ -69,15 +69,15 @@ const FreelancerRegistration = () => {
 
     switch (type) {
       case 'success':
-        return toast.success(message);
+        return toast.success(message, { dismissible: true });
       case 'error':
-        return toast.error(message);
+        return toast.error(message, { dismissible: true });
       case 'warning':
-        return toast.error(message); // Use error styling for warnings
+        return toast.error(message, { dismissible: true }); // Use error styling for warnings
       case 'info':
-        return toast(message); // Default toast for info
+        return toast(message, { dismissible: true }); // Default toast for info
       default:
-        return toast(message);
+        return toast(message, { dismissible: true });
     }
   }, []);
 
