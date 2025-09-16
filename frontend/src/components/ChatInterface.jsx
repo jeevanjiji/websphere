@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSocket } from '../contexts/SocketContext';
 import { motion } from 'framer-motion';
 import { 
   PaperAirplaneIcon,
@@ -11,7 +12,8 @@ import {
 import Button from './ui/Button';
 import { toast } from 'react-hot-toast';
 
-const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
+const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false }) => {
+  const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [chat, setChat] = useState(null);
@@ -32,6 +34,30 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
     }
   }, [chatId, isOpen]);
 
+  // Listen for real-time messages and join chat room
+  useEffect(() => {
+    if (!socket || !chatId) return;
+    
+    // Join the chat room
+    socket.emit('join-chat', chatId);
+    console.log('🔗 Joined chat room:', chatId);
+    
+    const handleMessageReceived = (data) => {
+      console.log('📨 Received message in chat:', data);
+      if (data.chatId === chatId) {
+        setMessages(prev => [...prev, data.message]);
+        scrollToBottom();
+      }
+    };
+    
+    socket.on('message-received', handleMessageReceived);
+    
+    return () => {
+      socket.off('message-received', handleMessageReceived);
+      socket.emit('leave-chat', chatId);
+      console.log('🚪 Left chat room:', chatId);
+    };
+  }, [socket, chatId]);
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -81,7 +107,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
 
       const data = await response.json();
       if (data.success) {
-        setMessages(prev => [...prev, data.data]);
+        // Don't add message here - let socket handle it to avoid duplicates
         setNewMessage('');
         setShowOfferForm(false);
         setOfferDetails({ proposedRate: '', timeline: '', description: '' });
@@ -146,6 +172,111 @@ const ChatInterface = ({ chatId, isOpen, onClose, user }) => {
 
   if (!isOpen) return null;
 
+  // Render embedded version for workspace
+  if (isWorkspaceChat) {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {getOtherParticipant()?.profilePicture ? (
+                <img
+                  src={getOtherParticipant().profilePicture}
+                  alt={getOtherParticipant().fullName}
+                  className="w-8 h-8 rounded-full"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                  <UserIcon className="h-4 w-4 text-gray-600" />
+                </div>
+              )}
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  {getOtherParticipant()?.fullName}
+                </h3>
+                <div className="text-sm text-gray-500">
+                  Project: {chat?.project?.title}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+          {loading ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-gray-400 mb-2">💬</div>
+              <p className="text-gray-500">No messages yet. Start the conversation!</p>
+            </div>
+          ) : (
+            messages.map((message) => {
+              const isMine = message.sender._id === user.id;
+              return (
+                <div
+                  key={message._id}
+                  className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[70%] rounded-lg p-3 ${
+                    isMine 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-white border border-gray-200'
+                  }`}>
+                    <p className="text-sm">{message.content}</p>
+                    
+                    <div className={`text-xs mt-1 ${
+                      isMine ? 'text-green-100' : 'text-gray-500'
+                    }`}>
+                      {formatMessageTime(message.createdAt)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Message Input */}
+        <div className="p-4 border-t border-gray-200">
+          <form onSubmit={handleSendMessage} className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                disabled={sending}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+              >
+                <PaperClipIcon className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!newMessage.trim() || sending}
+              className="flex items-center gap-2"
+            >
+              <PaperAirplaneIcon className="h-5 w-5" />
+              {sending ? 'Sending...' : 'Send'}
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Render modal version for regular chat
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <motion.div

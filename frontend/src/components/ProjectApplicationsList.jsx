@@ -13,7 +13,7 @@ import Button from './ui/Button';
 import Badge from './ui/Badge';
 import { toast } from 'react-hot-toast';
 
-const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat }) => {
+const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat, onOpenWorkspace }) => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [respondingTo, setRespondingTo] = useState(null);
@@ -171,6 +171,9 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat 
       setAwardingProject(null);
     }
   };
+
+  // Check if any freelancer has been awarded for this project
+  const isProjectAwarded = applications.some(app => app.status === 'awarded');
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -393,17 +396,29 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat 
                   <ChatBubbleLeftIcon className="h-4 w-4" />
                   Open Chat
                 </Button>
-                
+
                 <Button
-                  variant="success"
+                  variant="info"
                   size="small"
-                  onClick={() => handleAwardProject(application._id)}
-                  disabled={awardingProject === application._id}
+                  onClick={() => onOpenWorkspace && onOpenWorkspace(projectId, application._id)}
                   className="flex items-center gap-2"
                 >
-                  <CheckIcon className="h-4 w-4" />
-                  {awardingProject === application._id ? 'Awarding...' : 'Select for Job'}
+                  <UserIcon className="h-4 w-4" />
+                  Workspace
                 </Button>
+                
+                {!isProjectAwarded && (
+                  <Button
+                    variant="success"
+                    size="small"
+                    onClick={() => handleAwardProject(application._id)}
+                    disabled={awardingProject === application._id}
+                    className="flex items-center gap-2"
+                  >
+                    <CheckIcon className="h-4 w-4" />
+                    {awardingProject === application._id ? 'Awarding...' : 'Select for Job'}
+                  </Button>
+                )}
               </div>
             )}
 

@@ -18,7 +18,7 @@ const User = require('../models/User');
 const checkWorkspaceAccess = async (req, res, next) => {
   try {
     const { workspaceId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Fixed: use userId instead of id
 
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) {
@@ -55,7 +55,7 @@ const checkWorkspaceAccess = async (req, res, next) => {
 // GET /api/workspaces - Get user's workspaces
 router.get('/', auth(['client', 'freelancer']), async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId; // Fixed: use userId instead of id
     console.log('🔥 GET USER WORKSPACES - User ID:', userId);
 
     const workspaces = await Workspace.find({
@@ -89,7 +89,7 @@ router.get('/', auth(['client', 'freelancer']), async (req, res) => {
 router.post('/', auth(['client']), async (req, res) => {
   try {
     const { projectId, applicationId } = req.body;
-    const clientId = req.user.id;
+    const clientId = req.user.userId; // Fixed: use userId instead of id
 
     console.log('🔥 CREATE WORKSPACE - Project:', projectId, 'Application:', applicationId);
 
@@ -479,7 +479,7 @@ router.post('/:workspaceId/files',
           folder,
           description,
           tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          uploadedBy: req.user.id
+          uploadedBy: req.user.userId // Fixed: use userId instead of id
         });
 
         await workspaceFile.save();
@@ -562,7 +562,7 @@ router.post('/:workspaceId/deliverables',
         description,
         type,
         milestone: milestone || null,
-        submittedBy: req.user.id,
+        submittedBy: req.user.userId, // Fixed: use userId instead of id
         submissionNotes
       });
 
@@ -646,7 +646,7 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
     }
 
     deliverable.status = status;
-    deliverable.reviewedBy = req.user.id;
+    deliverable.reviewedBy = req.user.userId; // Fixed: use userId instead of id
     deliverable.reviewDate = new Date();
     deliverable.reviewNotes = reviewNotes;
 

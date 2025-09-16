@@ -8,17 +8,30 @@ import { useAuth } from '../contexts/AuthContext';
 const ClientLandingPage = () => {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
+    // Wait for auth loading to complete before making redirect decisions
+    if (loading) return;
     
-    // Protect route - only clients can access
-    if (!user || user.role !== 'client') {
+    // Protect route - only authenticated clients can access
+    if (!isAuthenticated || !user || user.role !== 'client') {
       navigate('/login');
       return;
     }
-  }, [navigate]);
+  }, [navigate, user, isAuthenticated, loading]);
+
+  // Show loading while authentication is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="client-landing-page bg-gray-50">

@@ -11,20 +11,21 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    console.log('Current user:', user); // Debug log
+    // Wait for auth loading to complete before making redirect decisions
+    if (authLoading) return;
     
-    if (!user || user.role !== 'admin') {
+    // Protect route - only authenticated admins can access
+    if (!isAuthenticated || !user || user.role !== 'admin') {
       console.log('Not admin user, redirecting to login');
       navigate('/login');
       return;
     }
 
     fetchDashboardData();
-  }, [navigate]);
+  }, [navigate, user, isAuthenticated, authLoading]);
 
   const fetchDashboardData = async () => {
     try {
@@ -102,6 +103,18 @@ const AdminDashboard = () => {
       }
     }
   };
+
+  // Show loading while authentication is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -13,6 +13,7 @@ import {
 import { Button, Card, Badge } from './ui';
 import ProjectApplicationModal from './ProjectApplicationModal';
 import ChatInterface from './ChatInterface';
+import WorkspaceInterface from './WorkspaceInterface';
 
 const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const [internalActiveTab, setInternalActiveTab] = useState('browse');
@@ -42,10 +43,16 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     project: null
   });
   const [applications, setApplications] = useState([]);
+  const [workspaceAvailability, setWorkspaceAvailability] = useState({}); // Track which projects have workspaces
   const [chats, setChats] = useState([]);
   const [chatModal, setChatModal] = useState({
     isOpen: false,
     chatId: null
+  });
+  const [workspaceModal, setWorkspaceModal] = useState({
+    isOpen: false,
+    projectId: null,
+    applicationId: null
   });
 
   // Get user from localStorage
@@ -142,6 +149,17 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       if (data.success) {
         setApplications(data.applications);
         setPagination(data.pagination);
+        
+        // Check workspace availability for accepted applications
+        const acceptedApps = data.applications.filter(app => app.status === 'accepted');
+        const workspaceChecks = {};
+        
+        for (const app of acceptedApps) {
+          const hasWorkspace = await checkWorkspaceExists(app.project._id);
+          workspaceChecks[app.project._id] = hasWorkspace;
+        }
+        
+        setWorkspaceAvailability(workspaceChecks);
       } else {
         toast.error(data.message || 'Failed to fetch applications');
       }
@@ -150,6 +168,26 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       toast.error('Failed to load applications. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Check if workspace exists for a project
+  const checkWorkspaceExists = async (projectId) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+
+      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error checking workspace:', error);
+      return false;
     }
   };
 
@@ -467,22 +505,24 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     </div>
                     
                     {application.status === 'accepted' && (
-                      <Button 
-                        variant="primary" 
-                        size="small"
-                        onClick={() => {
-                          if (application.chatId) {
-                            setChatModal({ 
-                              isOpen: true, 
-                              chatId: application.chatId 
-                            });
-                          } else {
-                            toast.error('Chat not available for this application');
-                          }
-                        }}
-                      >
-                        Open Chat
-                      </Button>
+                      <div className="flex justify-end">
+                        {/* Only show workspace button if workspace exists for this freelancer */}
+                        {workspaceAvailability[application.project._id] && (
+                          <Button 
+                            variant="success" 
+                            size="small"
+                            onClick={() => {
+                              setWorkspaceModal({
+                                isOpen: true,
+                                projectId: application.project._id,
+                                applicationId: application._id
+                              });
+                            }}
+                          >
+                            Open Workspace
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -667,6 +707,15 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         onClose={() => setChatModal({ isOpen: false, chatId: null })}
         user={user}
       />
+
+      {/* Workspace Modal */}
+      {workspaceModal.isOpen && (
+        <WorkspaceInterface
+          projectId={workspaceModal.projectId}
+          applicationId={workspaceModal.applicationId}
+          onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
+        />
+      )}
     </section>
   );
 };

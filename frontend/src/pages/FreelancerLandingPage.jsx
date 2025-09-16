@@ -8,19 +8,20 @@ import { useAuth } from '../contexts/AuthContext';
 
 const FreelancerLandingPage = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('browse');
   const dashboardRef = useRef(null);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
+    // Wait for auth loading to complete before making redirect decisions
+    if (loading) return;
     
-    // Protect route - only freelancers can access
-    if (!user || user.role !== 'freelancer') {
+    // Protect route - only authenticated freelancers can access
+    if (!isAuthenticated || !user || user.role !== 'freelancer') {
       navigate('/login');
       return;
     }
-  }, [navigate]);
+  }, [navigate, user, isAuthenticated, loading]);
 
   const handleTabNavigation = (tabId) => {
     setActiveTab(tabId);
@@ -32,6 +33,18 @@ const FreelancerLandingPage = () => {
       });
     }
   };
+
+  // Show loading while authentication is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="freelancer-landing-page bg-bg-secondary">

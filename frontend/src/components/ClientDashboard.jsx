@@ -15,6 +15,7 @@ import Card from './ui/Card';
 import Badge from './ui/Badge';
 import ProjectApplicationsList from './ProjectApplicationsList';
 import ChatInterface from './ChatInterface';
+import WorkspaceInterface from './WorkspaceInterface';
 import SimplePostProjectForm from './SimplePostProjectForm';
 import ClientTour from './ClientTour';
 import { toast } from 'react-hot-toast';
@@ -29,6 +30,11 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
   const [chatModal, setChatModal] = useState({
     isOpen: false,
     chatId: null
+  });
+  const [workspaceModal, setWorkspaceModal] = useState({
+    isOpen: false,
+    projectId: null,
+    applicationId: null
   });
   const [runTour, setRunTour] = useState(false);
 
@@ -127,8 +133,13 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
       }
 
       const data = await response.json();
-      if (status === 'accepted' && data.chatId) {
-        toast.success('Application accepted! Chat has been created.');
+      if (status === 'accepted') {
+        if (data.chatId) {
+          toast.success('Application accepted! Chat has been created.');
+        }
+        if (data.workspaceId) {
+          toast.success('Workspace created successfully!');
+        }
       }
       fetchMyProjects();
     } catch (error) {
@@ -142,6 +153,15 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     setChatModal({
       isOpen: true,
       chatId: chatId
+    });
+  };
+
+  const handleOpenWorkspace = (projectId, applicationId) => {
+    console.log('🚀 Opening workspace for project:', projectId, 'application:', applicationId);
+    setWorkspaceModal({
+      isOpen: true,
+      projectId: projectId,
+      applicationId: applicationId
     });
   };
 
@@ -215,17 +235,28 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
                 {project.applicationsCount || 0} applications
               </span>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedProject(project);
-                    setActiveTab('applications');
-                  }}
-                >
-                  <EyeIcon className="h-4 w-4" />
-                  View Applications
-                </Button>
+                {project.hasAcceptedFreelancer ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleOpenWorkspace(project._id, project.acceptedApplicationId)}
+                  >
+                    <UserIcon className="h-4 w-4" />
+                    Open Workspace
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setActiveTab('applications');
+                    }}
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                    View Applications
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
@@ -297,6 +328,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
           projectId={selectedProject._id}
           onApplicationResponse={handleApplicationResponse}
           onOpenChat={handleOpenChat}
+          onOpenWorkspace={handleOpenWorkspace}
         />
       </div>
     );
@@ -402,6 +434,15 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         onClose={() => setChatModal({ isOpen: false, chatId: null })}
         user={user}
       />
+
+      {/* Workspace Modal */}
+      {workspaceModal.isOpen && (
+        <WorkspaceInterface
+          projectId={workspaceModal.projectId}
+          applicationId={workspaceModal.applicationId}
+          onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
+        />
+      )}
 
       {/* Client Tour */}
       <ClientTour runTour={runTour} onTourEnd={handleTourEnd} />
