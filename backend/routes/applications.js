@@ -294,6 +294,137 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
   }
 });
 
+// PUT /api/applications/:applicationId/status - Accept/reject application (client only)
+router.put('/:applicationId/status', auth(['client']), async (req, res) => {
+  console.log('🔥 UPDATE APPLICATION STATUS - Application ID:', req.params.applicationId);
+  console.log('🔥 Request body:', req.body);
+  console.log('🔥 User:', req.user);
+  try {
+    const { applicationId } = req.params;
+    const { status } = req.body; // status: 'accepted' or 'rejected'
+
+    if (!status || !['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be "accepted" or "rejected"'
+      });
+    }
+
+    const application = await Application.findById(applicationId)
+      .populate('project')
+      .populate('freelancer');
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    // Verify project belongs to the client
+    if (application.project.client.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only respond to applications for your own projects.'
+      });
+    }
+
+    if (application.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'This application has already been responded to'
+      });
+    }
+
+    // Update application status
+    application.status = status;
+    application.respondedAt = new Date();
+    await application.save();
+
+    let chatId = null;
+    let workspaceId = null;
+
+    // If accepted, create a chat for communication and workspace
+    if (status === 'accepted') {
+      const { Chat, Message } = require('../models/Chat');
+      const Workspace = require('../models/Workspace');
+      
+      const chat = new Chat({
+        project: application.project._id,
+        application: application._id,
+        participants: [
+          { user: application.project.client, role: 'client' },
+          { user: application.freelancer._id, role: 'freelancer' }
+        ]
+      });
+      await chat.save();
+      chatId = chat._id;
+
+      // Create initial system message
+      const systemMessage = new Message({
+        chat: chat._id,
+        sender: req.user.userId,
+        content: `Application accepted! You can now discuss project details and negotiate terms.`,
+        messageType: 'system'
+      });
+      await systemMessage.save();
+
+      chat.lastMessage = systemMessage._id;
+      chat.lastActivity = new Date();
+      await chat.save();
+
+      // Create workspace for the project
+      try {
+        const existingWorkspace = await Workspace.findOne({ project: application.project._id });
+        
+        if (!existingWorkspace) {
+          const workspace = new Workspace({
+            project: application.project._id,
+            client: application.project.client,
+            freelancer: application.freelancer._id,
+            application: application._id,
+            expectedEndDate: application.project.timeline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days default
+          });
+          await workspace.save();
+          workspaceId = workspace._id;
+          console.log('✅ Workspace created automatically:', workspaceId);
+        } else {
+          workspaceId = existingWorkspace._id;
+          console.log('✅ Using existing workspace:', workspaceId);
+        }
+      } catch (workspaceError) {
+        console.error('❌ Error creating workspace:', workspaceError);
+        // Don't fail the entire operation if workspace creation fails
+      }
+
+      // If this is the first acceptance, update project status
+      if (application.project.status === 'open') {
+        await Project.findByIdAndUpdate(application.project._id, {
+          status: 'in_progress'
+        });
+      }
+    }
+
+    console.log('✅ Application status updated successfully');
+    res.json({
+      success: true,
+      message: `Application ${status} successfully`,
+      application,
+      chatId: chatId,
+      workspaceId: workspaceId,
+      chatCreated: status === 'accepted',
+      workspaceCreated: status === 'accepted' && workspaceId
+    });
+  } catch (error) {
+    console.error('❌ Error updating application status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update application status',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/applications/:applicationId - Get specific application details
 router.get('/:applicationId', auth(['client', 'freelancer']), async (req, res) => {
   console.log('🔥 GET APPLICATION DETAILS - Application ID:', req.params.applicationId);

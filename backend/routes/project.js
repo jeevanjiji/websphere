@@ -1,5 +1,6 @@
 const express = require('express');
 const Project = require('../models/Project');
+const Application = require('../models/Application');
 const { auth } = require('../middlewares/auth');
 const { uploadProjectAttachments, handleMulterError } = require('../middlewares/upload');
 const {
@@ -88,8 +89,19 @@ router.get('/my', auth(['client', 'freelancer']), async (req, res) => {
     let projects = [];
 
     if (req.user.role === 'client') {
-      // For clients: get projects they created
+      // For clients: get projects they created with accepted application info
       projects = await Project.find({ client: req.user.userId }).sort('-createdAt');
+      
+      // Add accepted application info for each project
+      for (let project of projects) {
+        const acceptedApplication = await Application.findOne({ 
+          project: project._id, 
+          status: { $in: ['accepted', 'awarded'] }
+        });
+        
+        project._doc.hasAcceptedFreelancer = !!acceptedApplication;
+        project._doc.acceptedApplicationId = acceptedApplication?._id;
+      }
     } else if (req.user.role === 'freelancer') {
       // For freelancers: get all projects for now (later we can filter by applied/awarded projects)
       // For now, just return empty array or sample projects

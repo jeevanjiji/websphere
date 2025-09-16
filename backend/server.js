@@ -38,7 +38,8 @@ app.use(
   })
 );
 
-// Session middleware - MUST be before routers
+  // ...existing code...
+  app.set('io', io);
 app.use(
   session({
     secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'your_session_secret_key',
@@ -156,6 +157,24 @@ try {
   console.log('✅ Chat router connected → /api/chats');
 } catch (err) {
   console.error('❌ Failed to load chat router:', err.message);
+}
+
+// Workspace router
+try {
+  const workspaceRouter = require('./routes/workspace');
+  app.use('/api/workspaces', workspaceRouter);
+  console.log('✅ Workspace router connected → /api/workspaces');
+} catch (err) {
+  console.error('❌ Failed to load workspace router:', err.message);
+}
+
+// Files router
+try {
+  const filesRouter = require('./routes/files');
+  app.use('/api/files', filesRouter);
+  console.log('✅ Files router connected → /api/files');
+} catch (err) {
+  console.error('❌ Failed to load files router:', err.message);
 }
 
 /* ──────────────────────────────────────────
@@ -280,6 +299,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle chat room joining
+  socket.on('join-chat', (chatId) => {
+    socket.join(chatId);
+    console.log(`👥 User ${socket.id} joined chat room: ${chatId}`);
+  });
+
+  // Handle chat room leaving  
+  socket.on('leave-chat', (chatId) => {
+    socket.leave(chatId);
+    console.log(`🚪 User ${socket.id} left chat room: ${chatId}`);
+  });
+
   // Handle typing indicators
   socket.on('typing-start', (data) => {
     const { userId, chatId } = data;
@@ -290,8 +321,8 @@ io.on('connection', (socket) => {
       timestamp: new Date()
     });
     
-    // Broadcast typing indicator to other users in the chat
-    socket.broadcast.emit('user-typing', {
+    // Broadcast typing indicator to users in the chat room only
+    socket.to(chatId).emit('user-typing', {
       userId,
       chatId,
       isTyping: true
@@ -302,8 +333,8 @@ io.on('connection', (socket) => {
     const { userId, chatId } = data;
     typingUsers.delete(`${chatId}-${userId}`);
     
-    // Broadcast stop typing to other users in the chat
-    socket.broadcast.emit('user-typing', {
+    // Broadcast stop typing to users in the chat room only
+    socket.to(chatId).emit('user-typing', {
       userId,
       chatId,
       isTyping: false

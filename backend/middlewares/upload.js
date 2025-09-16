@@ -78,6 +78,26 @@ const uploadMultipleImages = multer({
   fileFilter: imageFilter
 }).array('images', 5);
 
+// Workspace files upload configuration
+const uploadWorkspaceFiles = multer({
+  storage: storage,
+  limits: { 
+    fileSize: 50 * 1024 * 1024, // 50MB limit per file
+    files: 10 // Max 10 files
+  },
+  fileFilter: allFilesFilter
+}).array('files', 10);
+
+// Single workspace file upload
+const uploadSingleWorkspaceFile = multer({
+  storage: storage,
+  limits: { 
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 1
+  },
+  fileFilter: allFilesFilter
+}).single('file');
+
 // Error handling middleware for multer
 const handleMulterError = (error, req, res, next) => {
   if (error instanceof multer.MulterError) {
@@ -121,5 +141,7 @@ module.exports = {
   uploadProjectAttachments,
   uploadSingleImage,
   uploadMultipleImages,
+  uploadWorkspaceFiles,
+  uploadSingleWorkspaceFile,
   handleMulterError
 };

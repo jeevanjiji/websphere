@@ -224,6 +224,16 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
     chat.lastActivity = new Date();
     await chat.save();
 
+    // Emit real-time event via Socket.IO to chat room
+    const io = req.app.get('io');
+    if (io) {
+      io.to(chatId).emit('message-received', {
+        chatId,
+        message: message.toObject(),
+      });
+      console.log('📡 Real-time message emitted to chat room:', chatId);
+    }
+
     console.log('✅ Message sent successfully');
     res.status(201).json({
       success: true,
