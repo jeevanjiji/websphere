@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ChatInterface from './ChatInterface';
+import MilestoneStatusManager from './MilestoneStatusManager';
+import MilestoneTemplateModal from './MilestoneTemplateModal';
 import { toast } from 'react-hot-toast';
 
 const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
@@ -144,6 +146,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
     if (!workspace) return;
 
     try {
+      console.log('Creating milestone with data:', milestoneData);
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones`, {
         method: 'POST',
@@ -160,7 +163,10 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
         toast.success('Milestone created successfully!');
         return data.data;
       } else {
-        throw new Error('Failed to create milestone');
+        const errorData = await response.json();
+        console.error('Milestone creation error:', errorData);
+        toast.error(errorData.message || 'Failed to create milestone');
+        throw new Error(errorData.message || 'Failed to create milestone');
       }
     } catch (error) {
       console.error('Error creating milestone:', error);
@@ -402,7 +408,10 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
 
 // Milestones Tab Component
 const MilestonesTab = ({ milestones, workspace, user, onCreate, onRefresh }) => {
+  console.log('MilestonesTab rendering with:', { milestones, workspace, user });
+  
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -410,6 +419,20 @@ const MilestonesTab = ({ milestones, workspace, user, onCreate, onRefresh }) => 
     amount: '',
     requirements: ['']
   });
+
+  // Early return if required props are missing
+  if (!workspace || !user) {
+    console.log('MilestonesTab: Missing required props', { workspace, user });
+    return (
+      <div className="h-full flex flex-col">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            Loading milestones...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -465,22 +488,67 @@ const MilestonesTab = ({ milestones, workspace, user, onCreate, onRefresh }) => 
     }
   };
 
-  const isClient = user.userType === 'client';
+  const handleApplyTemplate = async (templateMilestones) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones/bulk`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ milestones: templateMilestones })
+      });
 
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="text-lg font-semibold">Project Milestones</h3>
-        {isClient && !showCreateForm && (
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Create Milestone
-          </button>
-        )}
-      </div>
+      if (response.ok) {
+        const data = await response.json();
+        onRefresh();
+        toast.success(`Created ${data.data.length} milestones from template!`);
+        setShowTemplateModal(false);
+      } else {
+        throw new Error('Failed to create milestones from template');
+      }
+    } catch (error) {
+      console.error('Error applying template:', error);
+      toast.error('Failed to apply template');
+    }
+  };
+
+  const isClient = user.userType === 'client' || user.role === 'client';
+  
+  // Check if the current user is the client of this workspace
+  const isWorkspaceClient = workspace && user && workspace.client && 
+    (workspace.client._id === user._id || workspace.client._id === user.id);
+  
+  console.log('User object in MilestonesTab:', user);
+  console.log('Workspace object:', workspace);
+  console.log('isClient (role-based):', isClient);
+  console.log('isWorkspaceClient (workspace-based):', isWorkspaceClient);
+  console.log('Final permission check:', isWorkspaceClient);
+
+  try {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="text-lg font-semibold">Project Milestones</h3>
+          {isWorkspaceClient && !showCreateForm && (
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowTemplateModal(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Choose Template
+              </button>
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Create Milestone
+              </button>
+            </div>
+          )}
+        </div>
 
       {/* Create Form */}
       {showCreateForm && (
@@ -574,57 +642,94 @@ const MilestonesTab = ({ milestones, workspace, user, onCreate, onRefresh }) => 
       {/* Milestones List */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {milestones.map(milestone => (
-            <div key={milestone._id} className="border rounded-lg p-4 hover:shadow-md">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h4 className="font-semibold text-lg">{milestone.title}</h4>
-                  <p className="text-gray-600">{milestone.description}</p>
-                </div>
-                <div className="text-right">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(milestone.status)}`}>
-                    {milestone.status.replace('-', ' ').toUpperCase()}
-                  </span>
-                  <p className="text-lg font-bold text-green-600 mt-1">
-                    ${milestone.amount}
-                  </p>
-                </div>
-              </div>
+          {Array.isArray(milestones) && milestones.length > 0 ? (
+            milestones.map(milestone => {
+              // Safely handle milestone data
+              if (!milestone || !milestone._id) {
+                console.warn('Invalid milestone data:', milestone);
+                return null;
+              }
+              
+              const requirements = Array.isArray(milestone.requirements) ? milestone.requirements : [];
+              const attachments = Array.isArray(milestone.attachments) ? milestone.attachments : [];
+              
+              return (
+                <div key={milestone._id} className="border rounded-lg p-4 hover:shadow-md">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-lg">{milestone.title || 'Untitled'}</h4>
+                      <p className="text-gray-600">{milestone.description || 'No description'}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(milestone.status || 'pending')}`}>
+                        {(milestone.status || 'pending').replace('-', ' ').toUpperCase()}
+                      </span>
+                      <p className="text-lg font-bold text-green-600 mt-1">
+                        ${milestone.amount || 0}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                <p>Due: {new Date(milestone.dueDate).toLocaleDateString()}</p>
-                <p>Order: #{milestone.order}</p>
-              </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                    <p>Due: {milestone.dueDate ? new Date(milestone.dueDate).toLocaleDateString() : 'No due date'}</p>
+                    <p>Order: #{milestone.order || 1}</p>
+                  </div>
 
-              {milestone.requirements.length > 0 && (
-                <div className="mb-3">
-                  <p className="font-medium text-sm mb-2">Requirements:</p>
-                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                    {milestone.requirements.map((req, index) => (
-                      <li key={index}>{req}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                  {requirements.length > 0 && (
+                    <div className="mb-3">
+                      <p className="font-medium text-sm mb-2">Requirements:</p>
+                      <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        {requirements.map((req, index) => (
+                          <li key={index}>
+                            {typeof req === 'string' ? req : req.description || 'Requirement'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-              {milestone.attachments.length > 0 && (
-                <div className="flex items-center text-sm text-gray-600">
-                  <span className="mr-2">📎</span>
-                  {milestone.attachments.length} attachment(s)
+                  {attachments.length > 0 && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="mr-2">📎</span>
+                      {attachments.length} attachment(s)
+                    </div>
+                  )}
                 </div>
-              )}
+              );
+            })
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              No milestones created yet
             </div>
-          ))}
+          )}
         </div>
-
-        {milestones.length === 0 && (
-          <div className="text-center text-gray-500 py-8">
-            No milestones created yet
-          </div>
-        )}
       </div>
+
+      {/* Template Modal */}
+      {showTemplateModal && (
+        <MilestoneTemplateModal
+          isOpen={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          onApplyTemplate={handleApplyTemplate}
+          projectType={workspace.project?.category || 'full-stack-development'}
+          budget={workspace.project?.budgetAmount || 10000}
+        />
+      )}
     </div>
   );
+  } catch (error) {
+    console.error('Error in MilestonesTab:', error);
+    return (
+      <div className="h-full flex flex-col">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-red-500">
+            <p>Error loading milestones</p>
+            <p className="text-sm mt-2">{error.message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 // Deliverables Tab Component

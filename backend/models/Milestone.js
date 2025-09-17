@@ -32,16 +32,78 @@ const milestoneSchema = new mongoose.Schema({
     default: 'INR',
     enum: ['INR', 'USD', 'EUR', 'GBP']
   },
-  // Timeline
+  // Timeline and deadlines
   startDate: { type: Date },
-  dueDate: { type: Date, required: true },
+  dueDate: { type: Date, required: true }, // When freelancer must deliver
+  paymentDueDate: { type: Date, required: true }, // When client must pay after approval
   completedDate: { type: Date },
+  paymentDate: { type: Date }, // When payment was actually made
+  
+  // Deadline enforcement
+  isOverdue: {
+    type: Boolean,
+    default: false
+  },
+  overdueNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  autoExtensionDays: {
+    type: Number,
+    default: 0, // Auto-extension days granted
+    max: 7 // Maximum 7 days auto-extension
+  },
   
   // Status tracking
   status: {
     type: String,
-    enum: ['pending', 'in-progress', 'review', 'approved', 'rejected', 'paid'],
+    enum: ['pending', 'in-progress', 'review', 'approved', 'rejected', 'paid', 'payment-overdue'],
     default: 'pending'
+  },
+  
+  // User tracking
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  
+  // Payment constraints
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'due', 'overdue', 'processing', 'completed', 'failed', 'disputed'],
+    default: 'pending'
+  },
+  paymentRemindersSent: {
+    type: Number,
+    default: 0
+  },
+  maxPaymentExtensions: {
+    type: Number,
+    default: 2 // Maximum payment extensions allowed
+  },
+  paymentExtensionsUsed: {
+    type: Number,
+    default: 0
+  },
+  
+  // Delivery constraints
+  deliveryStatus: {
+    type: String,
+    enum: ['on-time', 'at-risk', 'overdue', 'delivered'],
+    default: 'on-time'
+  },
+  extensionRequested: {
+    type: Boolean,
+    default: false
+  },
+  extensionReason: {
+    type: String,
+    maxlength: 500
+  },
+  extensionApproved: {
+    type: Boolean,
+    default: false
   },
   
   // Approval workflow
@@ -81,14 +143,32 @@ const milestoneSchema = new mongoose.Schema({
     completedDate: { type: Date }
   }],
   
-  // Payment tracking
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'processing', 'completed', 'failed'],
-    default: 'pending'
-  },
+  // Payment tracking (consolidated from duplicate definition)
   paymentId: { type: String }, // Payment gateway transaction ID
-  paidDate: { type: Date }
+  paidDate: { type: Date },
+  paymentDetails: {
+    razorpay_payment_id: { type: String },
+    razorpay_order_id: { type: String },
+    razorpay_signature: { type: String },
+    amount: { type: Number },
+    currency: { type: String },
+    method: { type: String },
+    paidAt: { type: Date }
+  },
+  paymentFailureReason: { type: String },
+  
+  // Escrow fields (for advanced payment protection)
+  escrowStatus: {
+    type: String,
+    enum: ['none', 'active', 'released', 'disputed'],
+    default: 'none'
+  },
+  escrowCreatedAt: { type: Date },
+  escrowReleasedAt: { type: Date },
+  
+  // Progress tracking
+  progressNotes: { type: String, maxlength: 1000 },
+  approvedDate: { type: Date }
 }, {
   timestamps: true
 });

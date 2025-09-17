@@ -177,7 +177,7 @@ router.get('/project/:projectId', auth(['client', 'freelancer']), async (req, re
     console.log('🔍 Query:', JSON.stringify(query, null, 2));
 
     const workspace = await Workspace.findOne(query)
-    .populate('project', 'title description budget timeline status')
+    .populate('project', 'title description budget budgetAmount category timeline status')
     .populate('client', 'fullName profilePicture email')
     .populate('freelancer', 'fullName profilePicture email skills')
     .populate('application', 'proposedRate coverLetter');

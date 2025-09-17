@@ -81,6 +81,10 @@ const connectDB = async (retries = 5) => {
     console.log('✅ MongoDB Atlas Connected!');
     console.log(`📊 Host: ${conn.connection.host}`);
     console.log(`🗃️ Database: ${conn.connection.name}`);
+    
+    // Start milestone deadline checker
+    const { startDeadlineChecker } = require('./middlewares/deadlineCheck');
+    startDeadlineChecker();
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err.message);
     if (retries > 0) {
@@ -175,6 +179,26 @@ try {
   console.log('✅ Files router connected → /api/files');
 } catch (err) {
   console.error('❌ Failed to load files router:', err.message);
+}
+
+// Payments router
+try {
+  const paymentsRouter = require('./routes/payments');
+  app.use('/api/payments', paymentsRouter);
+  console.log('✅ Payments router connected → /api/payments');
+} catch (err) {
+  console.error('❌ Failed to load payments router:', err.message);
+}
+
+// Milestones router
+try {
+  const milestonesRouter = require('./routes/milestones');
+  app.use('/api/workspaces', milestonesRouter);
+  app.use('/api/milestones', milestonesRouter); // Mount for template routes
+  console.log('✅ Milestones router connected → /api/workspaces/**/milestones');
+  console.log('✅ Milestones templates router connected → /api/milestones/templates');
+} catch (err) {
+  console.error('❌ Failed to load milestones router:', err.message);
 }
 
 /* ──────────────────────────────────────────
