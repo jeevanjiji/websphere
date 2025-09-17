@@ -107,3 +107,10 @@ temp/
 
 # Uploaded files
 uploads/
+
+# Sensitive test/debug files with credentials
+backend/test-workspace-route.js
+backend/debug-workspace.js
+backend/create-workspace.js
+backend/test-freelancer-workspace.js
+backend/check-workspace-access.js
