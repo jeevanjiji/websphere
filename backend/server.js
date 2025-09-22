@@ -260,6 +260,110 @@ app.use((err, req, res, next) => {
 });
 
 /* ──────────────────────────────────────────
+   Global Error Handler
+────────────────────────────────────────── */
+// Import multer error handler
+const { handleMulterError } = require('./middlewares/upload');
+
+// File upload error handler
+app.use(handleMulterError);
+
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error('💥 Global Error Handler:', {
+    message: error.message,
+    stack: error.stack,
+    url: req.originalUrl,
+    method: req.method,
+    body: req.body,
+    files: req.files ? req.files.length : 'none'
+  });
+
+  // Handle specific error types
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      message: 'File too large. Maximum file size is 10MB.',
+      error: 'FILE_TOO_LARGE'
+    });
+  }
+
+  if (error.code === 'LIMIT_FILE_COUNT') {
+    return res.status(413).json({
+      success: false,
+      message: 'Too many files. Maximum 5 files allowed.',
+      error: 'TOO_MANY_FILES'
+    });
+  }
+
+  // Handle Cloudinary errors
+  if (error.message && error.message.includes('File size too large')) {
+    return res.status(413).json({
+      success: false,
+      message: 'File too large for upload service. Maximum file size is 10MB.',
+      error: 'CLOUDINARY_FILE_TOO_LARGE'
+    });
+  }
+
+  if (error.http_code === 400 && error.message) {
+    return res.status(400).json({
+      success: false,
+      message: `Upload service error: ${error.message}`,
+      error: 'CLOUDINARY_VALIDATION_ERROR'
+    });
+  }
+
+  if (error.message && error.message.includes('File type not allowed')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid file type. Please check allowed file formats.',
+      error: 'INVALID_FILE_TYPE'
+    });
+  }
+
+  // MongoDB errors
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      error: error.message
+    });
+  }
+
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format',
+      error: 'INVALID_ID'
+    });
+  }
+
+  // JWT errors
+  if (error.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token',
+      error: 'INVALID_TOKEN'
+    });
+  }
+
+  if (error.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expired',
+      error: 'TOKEN_EXPIRED'
+    });
+  }
+
+  // Default error response
+  res.status(error.status || 500).json({
+    success: false,
+    message: error.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? error.stack : 'INTERNAL_ERROR'
+  });
+});
+
+/* ──────────────────────────────────────────
    Catch-All 404 Handlers — KEEP LAST
 ────────────────────────────────────────── */
 app.use('/api/*', (req, res) => {

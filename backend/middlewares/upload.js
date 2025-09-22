@@ -19,13 +19,18 @@ const imageFilter = (req, file, cb) => {
 // File filter for all file types (for project attachments)
 const allFilesFilter = (req, file, cb) => {
   // Allow most common file types
-  const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|txt|zip|rar|mp4|mov|avi/;
+  const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|txt|zip|rar|mp4|mov|avi|xls|xlsx|ppt|pptx|csv/;
   const extname = allowedTypes.test(file.originalname.toLowerCase());
+  
+  // Check file size before processing (additional safety check for Cloudinary compatibility)
+  if (file.size && file.size > 10 * 1024 * 1024) { // 10MB to match Cloudinary's free tier limit
+    return cb(new Error('File too large. Maximum size is 10MB to ensure compatibility with upload service.'));
+  }
   
   if (extname) {
     return cb(null, true);
   }
-  cb(new Error('File type not allowed!'));
+  cb(new Error('File type not allowed! Supported types: JPEG, JPG, PNG, GIF, WebP, PDF, DOC, DOCX, TXT, ZIP, RAR, MP4, MOV, AVI, XLS, XLSX, PPT, PPTX, CSV'));
 };
 
 // Profile picture upload configuration
@@ -82,18 +87,20 @@ const uploadMultipleImages = multer({
 const uploadWorkspaceFiles = multer({
   storage: storage,
   limits: { 
-    fileSize: 50 * 1024 * 1024, // 50MB limit per file
-    files: 10 // Max 10 files
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file (to match Cloudinary's limit)
+    files: 5, // Max 5 files
+    fieldSize: 1024 * 1024 // 1MB field size limit
   },
   fileFilter: allFilesFilter
-}).array('files', 10);
+}).array('files', 5);
 
 // Single workspace file upload
 const uploadSingleWorkspaceFile = multer({
   storage: storage,
   limits: { 
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 1
+    fileSize: 10 * 1024 * 1024, // 10MB limit (to match Cloudinary's limit)
+    files: 1,
+    fieldSize: 1024 * 1024 // 1MB field size limit
   },
   fileFilter: allFilesFilter
 }).single('file');

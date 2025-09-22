@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { auth } = require('../middlewares/auth');
-const { uploadWorkspaceFiles, uploadSingleWorkspaceFile } = require('../middlewares/upload');
+const { uploadWorkspaceFiles, uploadSingleWorkspaceFile, handleMulterError } = require('../middlewares/upload');
+const { uploadToCloudinary, validateCloudinaryConfig } = require('../utils/cloudinaryConfig');
 
 // Import models
 const Workspace = require('../models/Workspace');
@@ -465,26 +466,73 @@ router.post('/:workspaceId/files',
         });
       }
 
+      // Validate Cloudinary configuration
+      if (!validateCloudinaryConfig()) {
+        return res.status(500).json({
+          success: false,
+          message: 'File upload service not configured. Please contact administrator.'
+        });
+      }
+
       const uploadedFiles = [];
 
       for (const file of files) {
-        const workspaceFile = new WorkspaceFile({
-          workspace: workspaceId,
-          filename: file.filename,
-          originalName: file.originalname,
-          url: file.path,
-          publicId: file.public_id, // Cloudinary public ID
-          size: file.size,
-          mimeType: file.mimetype,
-          folder,
-          description,
-          tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-          uploadedBy: req.user.userId // Fixed: use userId instead of id
-        });
+        try {
+          // Additional file size validation before Cloudinary upload
+          if (file.size > 10 * 1024 * 1024) { // 10MB
+            console.error(`❌ File too large for Cloudinary: ${file.originalname} (${file.size} bytes)`);
+            continue; // Skip this file
+          }
 
-        await workspaceFile.save();
-        await workspaceFile.populate('uploadedBy', 'fullName profilePicture');
-        uploadedFiles.push(workspaceFile);
+          // Upload to Cloudinary
+          const cloudinaryResult = await uploadToCloudinary(file.buffer, {
+            folder: `websphere/workspaces/${workspaceId}`,
+            resourceType: 'auto', // Use resourceType instead of resource_type
+            public_id: `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            // Override problematic defaults
+            format: null,
+            quality: null,
+            transformation: {}
+          });
+
+          const workspaceFile = new WorkspaceFile({
+            workspace: workspaceId,
+            filename: cloudinaryResult.public_id,
+            originalName: file.originalname,
+            url: cloudinaryResult.secure_url,
+            publicId: cloudinaryResult.public_id,
+            size: file.size,
+            mimeType: file.mimetype,
+            folder,
+            description,
+            tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+            uploadedBy: req.user.userId // Fixed: use userId instead of id
+          });
+
+          await workspaceFile.save();
+          await workspaceFile.populate('uploadedBy', 'fullName profilePicture');
+          uploadedFiles.push(workspaceFile);
+        } catch (uploadError) {
+          console.error('❌ Error uploading file to Cloudinary:', uploadError);
+          
+          // Handle specific Cloudinary errors
+          if (uploadError.message && uploadError.message.includes('File size too large')) {
+            console.error(`❌ Cloudinary file size error for ${file.originalname}: ${uploadError.message}`);
+          } else if (uploadError.http_code === 400) {
+            console.error(`❌ Cloudinary validation error for ${file.originalname}: ${uploadError.message}`);
+          } else {
+            console.error(`❌ Unexpected Cloudinary error for ${file.originalname}:`, uploadError);
+          }
+          
+          // Continue with other files, but log the error
+        }
+      }
+
+      if (uploadedFiles.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No files could be uploaded. Please check file types and try again.'
+        });
       }
 
       // Update workspace stats
@@ -493,10 +541,10 @@ router.post('/:workspaceId/files',
         lastActivity: new Date()
       });
 
-      console.log('✅ Files uploaded successfully');
+      console.log('✅ Files uploaded successfully:', uploadedFiles.length);
       res.status(201).json({
         success: true,
-        message: 'Files uploaded successfully',
+        message: `${uploadedFiles.length} file(s) uploaded successfully`,
         data: uploadedFiles
       });
     } catch (error) {
@@ -685,5 +733,8 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
     });
   }
 });
+
+// Add multer error handling middleware
+router.use(handleMulterError);
 
 module.exports = router;

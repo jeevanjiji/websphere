@@ -14,6 +14,9 @@ import { Button, Card, Badge } from './ui';
 import ProjectApplicationModal from './ProjectApplicationModal';
 import ChatInterface from './ChatInterface';
 import WorkspaceInterface from './WorkspaceInterface';
+import WorkspaceInterfaceFixed from './WorkspaceInterfaceFixed';
+import DebugWorkspaceInterface from './DebugWorkspaceInterface';
+import { formatChatListTime } from '../utils/dateUtils';
 
 const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const [internalActiveTab, setInternalActiveTab] = useState('browse');
@@ -611,7 +614,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                       {otherParticipant?.fullName || 'Unknown User'}
                     </h4>
                     <span className="text-sm text-gray-500">
-                      {lastMessage?.createdAt ? new Date(lastMessage.createdAt).toLocaleDateString() : ''}
+                      {lastMessage?.createdAt ? formatChatListTime(lastMessage.createdAt) : ''}
                     </span>
                   </div>
                   
@@ -708,9 +711,9 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         user={user}
       />
 
-      {/* Workspace Modal */}
+      {/* Fixed Workspace Modal */}
       {workspaceModal.isOpen && (
-        <WorkspaceInterface
+        <WorkspaceInterfaceFixed
           projectId={workspaceModal.projectId}
           applicationId={workspaceModal.applicationId}
           onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}

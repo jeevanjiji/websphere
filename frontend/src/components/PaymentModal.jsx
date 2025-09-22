@@ -28,7 +28,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
 
       // Initialize Razorpay payment
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_your_key_here',
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_RKKI5YvBWNfh2o',
         amount: data.data.amount,
         currency: data.data.currency,
         name: 'WebSphere Payments',

@@ -154,8 +154,8 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
     }
 
     // Define what each role can update
-    const isClient = req.user.userType === 'client';
-    const isFreelancer = req.user.userType === 'freelancer';
+    const isClient = req.user.role === 'client';
+    const isFreelancer = req.user.role === 'freelancer';
 
     if (isClient) {
       // Client can approve/reject milestones and update details
@@ -212,7 +212,9 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
       }
     }
 
-    await milestone.save();
+    // Save without running full validation for status updates
+    await milestone.save({ validateBeforeSave: false });
+    
     await milestone.populate('createdBy reviewedBy submittedBy', 'fullName profilePicture email');
 
     console.log('✅ Milestone updated successfully');

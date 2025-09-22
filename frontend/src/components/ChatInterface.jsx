@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Button from './ui/Button';
 import { toast } from 'react-hot-toast';
+import { formatMessageTime } from '../utils/dateUtils';
 
 const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false }) => {
   const { socket } = useSocket();
@@ -147,13 +148,6 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         timeline: offerDetails.timeline,
         description: offerDetails.description
       }
-    });
-  };
-
-  const formatMessageTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
     });
   };
 

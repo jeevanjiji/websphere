@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middlewares/auth');
-const { uploadSingleWorkspaceFile } = require('../middlewares/upload');
+const { uploadSingleWorkspaceFile, handleMulterError } = require('../middlewares/upload');
 const cloudinary = require('../utils/cloudinaryConfig');
 const WorkspaceFile = require('../models/WorkspaceFile');
 const Workspace = require('../models/Workspace');
@@ -391,5 +391,8 @@ router.get('/workspaces/:workspaceId/stats', auth(['client', 'freelancer']), che
     });
   }
 });
+
+// Add multer error handling middleware
+router.use(handleMulterError);
 
 module.exports = router;
