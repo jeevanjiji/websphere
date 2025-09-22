@@ -114,3 +114,12 @@ backend/debug-workspace.js
 backend/create-workspace.js
 backend/test-freelancer-workspace.js
 backend/check-workspace-access.js
+
+# Payment test files with API keys/credentials
+backend/test-razorpay.js
+backend/test-payment*.js
+test-payment*.js
+
+# Payment integration documentation with sensitive API details
+PAYMENT_INTEGRATION_FIXES.md
+RAZORPAY_INTEGRATION.md
