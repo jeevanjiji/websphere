@@ -217,6 +217,11 @@ class NotificationService {
 
   // Subscribe to real-time notifications via WebSocket
   setupWebSocketNotifications() {
+    // Disabled - notifications are now handled via Socket.IO in SocketContext
+    console.log('WebSocket notifications disabled - using Socket.IO instead');
+    return null;
+    
+    /* DISABLED CODE - causing connection errors:
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -251,6 +256,7 @@ class NotificationService {
     };
 
     return ws;
+    */
   }
 
   // Predefined notification types

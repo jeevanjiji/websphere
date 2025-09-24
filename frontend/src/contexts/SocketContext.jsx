@@ -21,6 +21,11 @@ export const SocketProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({});
   const { user, isAuthenticated } = useAuth();
 
+  const getUserId = (u) => {
+    if (!u) return undefined;
+    return String(u._id || u.id || u.userId || '');
+  };
+
   // Initialize socket connection
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -35,7 +40,7 @@ export const SocketProvider = ({ children }) => {
         setIsConnected(true);
         
         // Tell server user is online
-        const userId = user.id || user._id || user.userId;
+        const userId = getUserId(user);
         console.log('📡 Emitting user-online for userId:', userId);
         console.log('👤 Full user object:', JSON.stringify(user, null, 2));
         console.log('🔌 Socket ID:', newSocket.id);
@@ -108,6 +113,12 @@ export const SocketProvider = ({ children }) => {
       newSocket.on('incoming-video-call', (callData) => {
         console.log('📹 Incoming video call:', callData);
         
+        const callerId = String(callData?.fromUser?._id || callData?.fromUser?.id || callData?.fromUser?.userId || '');
+        const currentUserId = getUserId(user);
+        if (callerId && currentUserId && callerId === currentUserId) {
+          console.log('🚫 Ignoring self incoming-video-call event');
+          return;
+        }
         // Show notification for incoming call
         toast.success(`Incoming video call from ${callData.fromUser.fullName}`, {
           duration: 10000, // 10 seconds for calls
@@ -169,7 +180,7 @@ export const SocketProvider = ({ children }) => {
 
       return () => {
         if (newSocket) {
-          newSocket.emit('user-offline', user.id || user._id || user.userId);
+          newSocket.emit('user-offline', getUserId(user));
           newSocket.disconnect();
         }
       };
@@ -206,7 +217,7 @@ export const SocketProvider = ({ children }) => {
   const emitTypingStart = (chatId) => {
     if (socket && user) {
       socket.emit('typing-start', { 
-        userId: user.id || user._id || user.userId, 
+        userId: getUserId(user), 
         chatId 
       });
     }
@@ -215,7 +226,7 @@ export const SocketProvider = ({ children }) => {
   const emitTypingStop = (chatId) => {
     if (socket && user) {
       socket.emit('typing-stop', { 
-        userId: user.id || user._id || user.userId, 
+        userId: getUserId(user), 
         chatId 
       });
     }
@@ -228,8 +239,9 @@ export const SocketProvider = ({ children }) => {
   };
 
   const isUserOnline = (userId) => {
-    const isOnline = onlineUsers.includes(userId);
-    console.log('🔍 Checking online status for userId:', userId);
+    const normalized = String(userId);
+    const isOnline = onlineUsers.includes(normalized);
+    console.log('🔍 Checking online status for userId:', normalized);
     console.log('👥 Current onlineUsers array:', onlineUsers);
     console.log('✅ Result:', isOnline);
     return isOnline;

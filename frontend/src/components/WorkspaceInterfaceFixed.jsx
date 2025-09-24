@@ -17,9 +17,10 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
+
 const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   console.log('🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
-  
+
   const { user } = useAuth();
   const { isUserOnline, socket } = useSocket();
   console.log('🔍 WorkspaceInterface: User from AuthContext:', user);
@@ -47,6 +48,85 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   // Video call state
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState(null);
+  // New: incoming call popup state
+  const [incomingCall, setIncomingCall] = useState(null); // { callId, fromUser, workspaceId, projectTitle }
+  
+  // Debug: Watch incomingCall state changes
+  useEffect(() => {
+    console.log('📹 IncomingCall state changed:', incomingCall);
+  }, [incomingCall]);
+  const [callAccepted, setCallAccepted] = useState(false);
+
+  const getId = (obj) => (obj ? String(obj._id || obj.id || obj.userId || '') : '');
+
+  // Listen for incoming video call events (from socket and window fallback)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleIncomingCall = (data) => {
+      console.log('📹 Incoming call event payload:', data);
+      // Only show for the current workspace
+      if (!data?.workspaceId || !workspace?._id || data.workspaceId !== workspace._id) {
+        console.log('📹 Incoming call for different workspace, ignoring');
+        return;
+      }
+      // If already in a call, ignore new incoming
+      if (showVideoCall) {
+        console.log('🚫 Already in a call, ignoring new incoming call');
+        return;
+      }
+      setIncomingCall(data);
+    };
+
+    const socketHandler = (data) => handleIncomingCall(data);
+    const windowHandler = (e) => handleIncomingCall(e.detail);
+
+    socket.on('incoming-video-call', socketHandler);
+    window.addEventListener('incoming-video-call', windowHandler);
+
+    return () => {
+      socket.off('incoming-video-call', socketHandler);
+      window.removeEventListener('incoming-video-call', windowHandler);
+    };
+  }, [socket, workspace, showVideoCall]);
+
+  // Listen for call response (for caller) and call-ended
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCallResponse = (data) => {
+      if (data.accepted) {
+        toast.success(`${data.responder?.fullName || 'Participant'} accepted the call!`);
+        setShowVideoCall(true);
+        setCallAccepted(true);
+        setOtherParticipant(prev => ({
+          ...prev,
+          isCurrentUserCaller: true
+        }));
+      } else {
+        toast.error(`${data.responder?.fullName || 'Participant'} declined the call.`);
+        setShowVideoCall(false);
+        setOtherParticipant(null);
+        setCallAccepted(false);
+      }
+    };
+
+    const handleCallEnded = () => {
+      toast.info('Call ended');
+      setShowVideoCall(false);
+      setOtherParticipant(null);
+      setCallAccepted(false);
+      setIncomingCall(null);
+    };
+
+    socket.on('call-response-received', handleCallResponse);
+    socket.on('call-ended', handleCallEnded);
+
+    return () => {
+      socket.off('call-response-received', handleCallResponse);
+      socket.off('call-ended', handleCallEnded);
+    };
+  }, [socket]);
 
   // Fetch workspace data
   useEffect(() => {
@@ -439,35 +519,51 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     setShowFileViewer(false);
   };
 
+
   const handleStartVideoCall = () => {
+    console.log('🔍 DEBUG: Starting video call');
+    console.log('🔍 Current user:', user);
+    console.log('🔍 Workspace client:', workspace.client);
+    console.log('🔍 Workspace freelancer:', workspace.freelancer);
+
     // Determine the other participant based on current user
     let participant = null;
-    
     if (workspace.client && workspace.freelancer) {
-      if (user._id === workspace.client._id) {
-        // Current user is client, other participant is freelancer
+      const userId = getId(user);
+      const clientId = getId(workspace.client);
+      const freelancerId = getId(workspace.freelancer);
+      
+      if (userId === clientId) {
         participant = workspace.freelancer;
-      } else {
-        // Current user is freelancer, other participant is client
+      } else if (userId === freelancerId) {
         participant = workspace.client;
       }
     }
-
     if (!participant) {
+      console.error('❌ Could not identify the other participant');
       toast.error('Could not identify the other participant');
       return;
     }
-
-    // Check if the other participant is online
-    if (!isUserOnline(participant._id)) {
+    
+    // Additional safety check: prevent calling yourself
+    if (getId(participant) === getId(user)) {
+      console.error('❌ Attempted to call yourself');
+      toast.error('Cannot call yourself');
+      return;
+    }
+    if (!isUserOnline(getId(participant))) {
       toast.warning(`${participant.fullName} is currently offline. They will receive a notification about the call.`);
     }
-
-    setOtherParticipant(participant);
-    setShowVideoCall(true);
-    
+    // For caller: store participant info and mark that current user is caller
+    setOtherParticipant({
+      ...participant,
+      isCurrentUserCaller: true // Current user is initiating the call
+    });
+    setCallAccepted(false);
+    setShowVideoCall(false); // Wait for acceptance
     // Emit video call initiation through socket
     if (socket) {
+      console.log('📹 Sending call request from:', getId(user), 'to:', getId(participant));
       socket.emit('video-call-request', {
         workspaceId: workspace._id,
         fromUser: user,
@@ -475,8 +571,43 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
         projectTitle: workspace.project?.title
       });
     }
-    
-    toast.success(`Starting video call with ${participant.fullName}...`);
+    toast.success(`Calling ${participant.fullName}...`);
+  };
+
+  // Accept/decline handlers for incoming call
+  const handleAcceptCall = () => {
+    if (socket && incomingCall) {
+      console.log('📹 Accepting call from:', incomingCall.fromUser.fullName);
+      socket.emit('video-call-response', {
+        callId: incomingCall.callId,
+        accepted: true,
+        responder: user,
+        callerId: getId(incomingCall.fromUser)
+      });
+      setCallAccepted(true);
+      setShowVideoCall(true);
+      // For receiver: store caller info and mark that current user is NOT the caller
+      setOtherParticipant({
+        ...incomingCall.fromUser,
+        isCurrentUserCaller: false // Current user is receiving the call
+      });
+      setIncomingCall(null);
+      console.log('📹 Video call modal should now be open');
+    }
+  };
+  const handleDeclineCall = () => {
+    if (socket && incomingCall) {
+      socket.emit('video-call-response', {
+        callId: incomingCall.callId,
+        accepted: false,
+        responder: user,
+        callerId: getId(incomingCall.fromUser)
+      });
+      setCallAccepted(false);
+      setShowVideoCall(false);
+      setOtherParticipant(null);
+      setIncomingCall(null);
+    }
   };
 
   const closeVideoCall = () => {
@@ -542,8 +673,8 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 
   console.log('🔍 WorkspaceInterface: Rendering full workspace interface');
 
-  const isFreelancer = user?.userType === 'freelancer' || user?.id === workspace.freelancer?._id || user?._id === workspace.freelancer?._id;
-  const isClient = user?.userType === 'client' || user?.id === workspace.client?._id || user?._id === workspace.client?._id;
+  const isFreelancer = user?.userType === 'freelancer' || getId(user) === getId(workspace.freelancer);
+  const isClient = user?.userType === 'client' || getId(user) === getId(workspace.client);
 
   const tabs = [
     { id: 'chat', name: 'Chat', icon: ChatBubbleLeftRightIcon },
@@ -570,22 +701,19 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
             {/* Online Status Indicator */}
             {workspace.client && workspace.freelancer && (
               <div className="flex items-center space-x-6 mt-3">
-                {console.log('🔍 Workspace client ID:', workspace.client._id)}
-                {console.log('🔍 Workspace freelancer ID:', workspace.freelancer._id)}
-                {console.log('🔍 Current user ID:', user._id)}
                 {/* Client Status */}
-                {user._id !== workspace.client._id && (
+                {getId(user) !== getId(workspace.client) && (
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
                       <div className={`w-3 h-3 rounded-full ${
-                        isUserOnline(workspace.client._id) ? 'bg-green-500' : 'bg-gray-400'
+                        isUserOnline(getId(workspace.client)) ? 'bg-green-500' : 'bg-gray-400'
                       }`}></div>
                       <span className="text-sm text-gray-600">
                         {workspace.client.fullName} 
                         <span className={`ml-1 ${
-                          isUserOnline(workspace.client._id) ? 'text-green-600' : 'text-gray-500'
+                          isUserOnline(getId(workspace.client)) ? 'text-green-600' : 'text-gray-500'
                         }`}>
-                          ({isUserOnline(workspace.client._id) ? 'Online' : 'Offline'})
+                          ({isUserOnline(getId(workspace.client)) ? 'Online' : 'Offline'})
                         </span>
                       </span>
                     </div>
@@ -593,18 +721,18 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                 )}
                 
                 {/* Freelancer Status */}
-                {user._id !== workspace.freelancer._id && (
+                {getId(user) !== getId(workspace.freelancer) && (
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
                       <div className={`w-3 h-3 rounded-full ${
-                        isUserOnline(workspace.freelancer._id) ? 'bg-green-500' : 'bg-gray-400'
+                        isUserOnline(getId(workspace.freelancer)) ? 'bg-green-500' : 'bg-gray-400'
                       }`}></div>
                       <span className="text-sm text-gray-600">
                         {workspace.freelancer.fullName}
                         <span className={`ml-1 ${
-                          isUserOnline(workspace.freelancer._id) ? 'text-green-600' : 'text-gray-500'
+                          isUserOnline(getId(workspace.freelancer)) ? 'text-green-600' : 'text-gray-500'
                         }`}>
-                          ({isUserOnline(workspace.freelancer._id) ? 'Online' : 'Offline'})
+                          ({isUserOnline(getId(workspace.freelancer)) ? 'Online' : 'Offline'})
                         </span>
                       </span>
                     </div>
@@ -1131,6 +1259,22 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
         onClose={closeFileViewer}
       />
 
+      {/* Incoming Video Call Popup */}
+      {incomingCall && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 text-center max-w-sm w-full">
+            <div className="mb-4">
+              <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-sm font-semibold mb-2">Incoming Video Call</span>
+              <h3 className="text-lg font-bold mb-2">{incomingCall.fromUser?.fullName || 'Someone'} is calling you</h3>
+              <p className="text-gray-600 mb-2">Project: {incomingCall.projectTitle || 'Workspace'}</p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <button onClick={handleAcceptCall} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Accept</button>
+              <button onClick={handleDeclineCall} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Decline</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Video Call Modal */}
       {showVideoCall && (
         <VideoCall

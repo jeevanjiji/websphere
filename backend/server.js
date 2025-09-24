@@ -422,6 +422,9 @@ io.on('connection', (socket) => {
         lastSeen: new Date()
       });
       
+      // Store userId on socket for WebRTC signaling
+      socket.userId = userId;
+      
       // Send updated online users list to all clients (including the newly connected user)
       const onlineUsersList = Array.from(onlineUsers.keys());
       console.log(`📊 Broadcasting online users list: [${onlineUsersList.join(', ')}]`);
@@ -526,11 +529,26 @@ io.on('connection', (socket) => {
 
   // Handle video call requests
   socket.on('video-call-request', (callData) => {
-    console.log('📹 Video call request:', callData);
+    console.log('📹 Video call request received');
+    console.log('📹 From user ID:', callData.fromUser._id);
+    console.log('📹 From user name:', callData.fromUser.fullName);
+    console.log('📹 To user ID:', callData.toUser._id);
+    console.log('📹 To user name:', callData.toUser.fullName);
+    console.log('📹 Current socket user:', socket.userId);
+    console.log('📹 Online users:', Array.from(onlineUsers.keys()));
+    console.log('📹 Call data:', JSON.stringify(callData, null, 2));
+    
+    // Prevent self-calls (safety check on backend)
+    if (callData.fromUser._id === callData.toUser._id) {
+      console.log('🚫 Blocked self-call attempt - same user ID');
+      socket.emit('call-error', { error: 'Cannot call yourself' });
+      return;
+    }
     
     // Find the target user's socket
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userId === callData.toUser._id) {
+        console.log('📹 Sending call to user:', userId, 'at socket:', userData.socketId);
         // Send call request to target user
         io.to(userData.socketId).emit('incoming-video-call', {
           callId: `call_${Date.now()}`,
@@ -545,10 +563,12 @@ io.on('connection', (socket) => {
           toUser: callData.toUser,
           status: 'sent'
         });
+        console.log('📹 Call request sent successfully');
         return;
       }
     }
     
+    console.log('📹 Target user not found online');
     // Target user is offline
     socket.emit('call-request-failed', {
       toUser: callData.toUser,
@@ -575,23 +595,26 @@ io.on('connection', (socket) => {
 
   // Handle WebRTC signaling
   socket.on('webrtc-offer', (data) => {
-    console.log('📹 WebRTC offer:', data.callId);
+    console.log('📹 WebRTC offer for workspace:', data.workspaceId);
     
     // Forward offer to target user
     for (const [userId, userData] of onlineUsers.entries()) {
-      if (userId === data.targetUserId) {
-        io.to(userData.socketId).emit('webrtc-offer', data);
+      if (userId === data.toUserId) {
+        io.to(userData.socketId).emit('webrtc-offer', {
+          ...data,
+          fromUserId: socket.userId // Add sender ID for response
+        });
         return;
       }
     }
   });
 
   socket.on('webrtc-answer', (data) => {
-    console.log('📹 WebRTC answer:', data.callId);
+    console.log('📹 WebRTC answer for workspace:', data.workspaceId);
     
     // Forward answer to caller
     for (const [userId, userData] of onlineUsers.entries()) {
-      if (userId === data.targetUserId) {
+      if (userId === data.toUserId) {
         io.to(userData.socketId).emit('webrtc-answer', data);
         return;
       }
@@ -599,11 +622,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('webrtc-ice-candidate', (data) => {
-    console.log('📹 WebRTC ICE candidate:', data.callId);
+    console.log('📹 WebRTC ICE candidate for workspace:', data.workspaceId);
     
     // Forward ICE candidate to target user
     for (const [userId, userData] of onlineUsers.entries()) {
-      if (userId === data.targetUserId) {
+      if (userId === data.toUserId) {
         io.to(userData.socketId).emit('webrtc-ice-candidate', data);
         return;
       }
@@ -611,18 +634,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('video-call-ended', (data) => {
-    console.log('📹 Video call ended:', data.callId);
+    console.log('📹 Video call ended:', data.callId, 'Target user:', data.targetUserId);
     
-    // Notify other participant
+    // Notify other participant that call has ended
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userId === data.targetUserId) {
+        console.log('📹 Notifying user', userId, 'that call ended');
         io.to(userData.socketId).emit('call-ended', {
           callId: data.callId,
-          endedBy: data.endedBy
+          endedBy: data.endedBy,
+          workspaceId: data.workspaceId
         });
         return;
       }
     }
+    console.log('📹 Target user not found online for call end notification');
   });
 
   // Handle disconnect

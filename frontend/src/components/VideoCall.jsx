@@ -11,8 +11,11 @@ import {
   SpeakerXMarkIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { useSocket } from '../contexts/SocketContext';
 
 const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
+  console.log('📹 VideoCall component rendered with:', { isOpen, workspaceId, participantInfo });
+  
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [peerConnection, setPeerConnection] = useState(null);
@@ -24,7 +27,9 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const socketRef = useRef(null);
+  const { socket } = useSocket();
+
+  const getId = (obj) => (obj ? String(obj._id || obj.id || obj.userId || '') : '');
 
   // WebRTC configuration
   const rtcConfiguration = {
@@ -35,195 +40,192 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
   };
 
   useEffect(() => {
-    if (isOpen) {
-      initializeCall();
-    }
+    if (!isOpen || !socket) return;
+    let pc;
+    let localStreamRef;
+    let cleanupFns = [];
 
-    return () => {
-      cleanup();
+    const setup = async () => {
+      try {
+        console.log('📹 Setting up video call...');
+        // Get user media
+        localStreamRef = await getUserMedia();
+        console.log('📹 Got user media');
+        // Initialize peer connection
+        pc = new RTCPeerConnection(rtcConfiguration);
+        setPeerConnection(pc);
+        console.log('📹 Created peer connection');
+
+        // Add local tracks
+        localStreamRef.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef);
+        });
+
+        // ICE candidate
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('webrtc-ice-candidate', {
+              candidate: event.candidate,
+              workspaceId,
+              toUserId: getId(participantInfo)
+            });
+          }
+        };
+
+        // Remote stream
+        pc.ontrack = (event) => {
+          setRemoteStream(event.streams[0]);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = event.streams[0];
+          }
+        };
+
+        const endForBoth = () => {
+          if (socket && participantInfo) {
+            socket.emit('video-call-ended', {
+              workspaceId,
+              targetUserId: getId(participantInfo),
+              callId: `call_${Date.now()}`,
+              endedBy: 'disconnect'
+            });
+          }
+          handleCallEnded();
+        };
+
+        // Connection state handling
+        pc.onconnectionstatechange = () => {
+          const state = pc.connectionState;
+          console.log('📹 Peer connection state:', state);
+          if (state === 'connected') {
+            setCallStatus('connected');
+          } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+            setCallStatus('ended');
+            endForBoth();
+          } else {
+            setCallStatus('connecting');
+          }
+        };
+        pc.oniceconnectionstatechange = () => {
+          const iceState = pc.iceConnectionState;
+          console.log('📹 ICE state:', iceState);
+          if (iceState === 'disconnected' || iceState === 'failed' || iceState === 'closed') {
+            endForBoth();
+          }
+        };
+
+        // Listen for signaling events
+        const offerHandler = async (data) => {
+          if (!data || data.workspaceId !== workspaceId) return;
+          console.log('📹 Received WebRTC offer');
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('webrtc-answer', {
+            answer,
+            workspaceId,
+            toUserId: data.fromUserId || getId(participantInfo)
+          });
+          setCallStatus('connecting');
+        };
+        const answerHandler = async (data) => {
+          if (!data || data.workspaceId !== workspaceId) return;
+          console.log('📹 Received WebRTC answer');
+          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          setCallStatus('connecting');
+        };
+        const iceHandler = async (data) => {
+          if (!data || data.workspaceId !== workspaceId) return;
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          } catch (e) {
+            console.error('Error adding ICE candidate', e);
+          }
+        };
+        socket.on('webrtc-offer', offerHandler);
+        socket.on('webrtc-answer', answerHandler);
+        socket.on('webrtc-ice-candidate', iceHandler);
+        cleanupFns.push(() => {
+          socket.off('webrtc-offer', offerHandler);
+          socket.off('webrtc-answer', answerHandler);
+          socket.off('webrtc-ice-candidate', iceHandler);
+        });
+
+        // Listen for call ended by other party
+        const endHandler = () => {
+          console.log('📹 Call ended by other party');
+          toast.info('Call ended by other participant');
+          handleCallEnded();
+        };
+        socket.on('call-ended', endHandler);
+        cleanupFns.push(() => socket.off('call-ended', endHandler));
+
+        // End call on socket disconnect
+        const socketDisconnectHandler = () => {
+          console.log('🔌 Socket disconnected during call');
+          endForBoth();
+        };
+        socket.on('disconnect', socketDisconnectHandler);
+        cleanupFns.push(() => socket.off('disconnect', socketDisconnectHandler));
+
+        // End call on tab close/navigation
+        const beforeUnloadHandler = () => endForBoth();
+        const visibilityHandler = () => {
+          if (document.hidden) {
+            endForBoth();
+          }
+        };
+        window.addEventListener('beforeunload', beforeUnloadHandler);
+        document.addEventListener('visibilitychange', visibilityHandler);
+        cleanupFns.push(() => {
+          window.removeEventListener('beforeunload', beforeUnloadHandler);
+          document.removeEventListener('visibilitychange', visibilityHandler);
+        });
+
+        // Caller creates offer only after modal open (post-accept)
+        if (participantInfo?.isCurrentUserCaller) {
+          console.log('📹 Current user is caller, creating offer');
+          setIsCaller(true);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('webrtc-offer', {
+            offer,
+            workspaceId,
+            toUserId: getId(participantInfo)
+          });
+          setCallStatus('connecting');
+        } else {
+          console.log('📹 Current user is receiver, waiting for offer');
+          setCallStatus('waiting');
+        }
+      } catch (error) {
+        console.error('📹 Error setting up video call:', error);
+        toast.error('Failed to initialize video call: ' + error.message);
+      }
     };
-  }, [isOpen]);
-
-  const initializeCall = async () => {
-    try {
-      // Initialize WebSocket connection
-      socketRef.current = new WebSocket(`ws://localhost:5000/video-call/${workspaceId}`);
-      
-      socketRef.current.onopen = () => {
-        console.log('WebSocket connected for video call');
-      };
-
-      socketRef.current.onmessage = handleSocketMessage;
-
-      socketRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        toast.error('Failed to connect to video call service');
-      };
-
-      // Get user media
-      await getUserMedia();
-      
-      // Initialize peer connection
-      const pc = new RTCPeerConnection(rtcConfiguration);
-      setPeerConnection(pc);
-
-      // Set up peer connection event handlers
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socketRef.current) {
-          socketRef.current.send(JSON.stringify({
-            type: 'ice-candidate',
-            candidate: event.candidate
-          }));
-        }
-      };
-
-      pc.ontrack = (event) => {
-        console.log('Received remote stream');
-        setRemoteStream(event.streams[0]);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-
-      pc.onconnectionstatechange = () => {
-        console.log('Connection state:', pc.connectionState);
-        if (pc.connectionState === 'connected') {
-          setCallStatus('connected');
-          toast.success('Video call connected!');
-        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-          setCallStatus('ended');
-          toast.error('Video call disconnected');
-        }
-      };
-
-    } catch (error) {
-      console.error('Error initializing call:', error);
-      toast.error('Failed to initialize video call');
-    }
-  };
+    setup();
+    return () => {
+      try {
+        cleanupFns.forEach((fn) => fn());
+      } catch {}
+      if (pc) pc.close();
+    };
+    // eslint-disable-next-line
+  }, [isOpen, socket, workspaceId, participantInfo]);
 
   const getUserMedia = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
-      
+      console.log('📹 Requesting user media...');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      console.log('📹 Got media stream:', stream);
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-
       return stream;
     } catch (error) {
-      console.error('Error accessing media devices:', error);
-      toast.error('Could not access camera/microphone');
+      console.error('📹 Error getting user media:', error);
+      toast.error('Could not access camera/microphone: ' + error.message);
       throw error;
-    }
-  };
-
-  const handleSocketMessage = async (event) => {
-    const message = JSON.parse(event.data);
-
-    switch (message.type) {
-      case 'offer':
-        await handleOffer(message.offer);
-        break;
-      case 'answer':
-        await handleAnswer(message.answer);
-        break;
-      case 'ice-candidate':
-        await handleIceCandidate(message.candidate);
-        break;
-      case 'call-request':
-        // Handle incoming call
-        setCallStatus('incoming');
-        break;
-      case 'call-ended':
-        handleCallEnded();
-        break;
-      default:
-        console.log('Unknown message type:', message.type);
-    }
-  };
-
-  const startCall = async () => {
-    if (!peerConnection || !localStream) return;
-
-    try {
-      setIsCaller(true);
-      
-      // Add local stream to peer connection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      // Create offer
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      // Send offer through WebSocket
-      if (socketRef.current) {
-        socketRef.current.send(JSON.stringify({
-          type: 'offer',
-          offer: offer
-        }));
-      }
-
-      setCallStatus('connecting');
-    } catch (error) {
-      console.error('Error starting call:', error);
-      toast.error('Failed to start call');
-    }
-  };
-
-  const handleOffer = async (offer) => {
-    if (!peerConnection || !localStream) return;
-
-    try {
-      // Add local stream to peer connection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      await peerConnection.setRemoteDescription(offer);
-      
-      // Create answer
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      // Send answer
-      if (socketRef.current) {
-        socketRef.current.send(JSON.stringify({
-          type: 'answer',
-          answer: answer
-        }));
-      }
-
-      setCallStatus('connected');
-    } catch (error) {
-      console.error('Error handling offer:', error);
-    }
-  };
-
-  const handleAnswer = async (answer) => {
-    if (!peerConnection) return;
-
-    try {
-      await peerConnection.setRemoteDescription(answer);
-      setCallStatus('connected');
-    } catch (error) {
-      console.error('Error handling answer:', error);
-    }
-  };
-
-  const handleIceCandidate = async (candidate) => {
-    if (!peerConnection) return;
-
-    try {
-      await peerConnection.addIceCandidate(candidate);
-    } catch (error) {
-      console.error('Error adding ICE candidate:', error);
     }
   };
 
@@ -304,8 +306,14 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
   };
 
   const endCall = () => {
-    if (socketRef.current) {
-      socketRef.current.send(JSON.stringify({ type: 'call-ended' }));
+    if (socket && participantInfo) {
+      console.log('📹 Ending call and notifying participant:', getId(participantInfo));
+      socket.emit('video-call-ended', {
+        workspaceId,
+        targetUserId: getId(participantInfo),
+        callId: `call_${Date.now()}`,
+        endedBy: 'user'
+      });
     }
     handleCallEnded();
   };
@@ -328,16 +336,15 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
       setPeerConnection(null);
     }
 
-    // Close WebSocket
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-
     setCallStatus('ended');
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    console.log('📹 VideoCall not rendering - isOpen is false');
+    return null;
+  }
+
+  console.log('📹 VideoCall rendering with callStatus:', callStatus);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
@@ -352,22 +359,25 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
           <div>
             <h3 className="text-lg font-semibold">Video Call</h3>
             <p className="text-sm text-gray-300">
-              {participantInfo?.name || 'Connecting...'}
+              {participantInfo?.fullName || participantInfo?.name || 'Connecting...'}
             </p>
           </div>
           <div className="flex items-center space-x-2">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${
               callStatus === 'connected' ? 'bg-green-500' :
               callStatus === 'connecting' ? 'bg-yellow-500' :
+              callStatus === 'waiting' ? 'bg-blue-500' :
               'bg-red-500'
             }`}>
               {callStatus === 'connected' ? 'Connected' :
                callStatus === 'connecting' ? 'Connecting...' :
+               callStatus === 'waiting' ? 'Waiting for connection...' :
                'Disconnected'}
             </span>
             <button
-              onClick={onClose}
+              onClick={endCall}
               className="p-2 hover:bg-gray-700 rounded-full transition-colors"
+              title="Close call"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -400,7 +410,11 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
             <div className="absolute inset-0 flex items-center justify-center text-white">
               <div className="text-center">
                 <VideoCameraSlashIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg">Waiting for participant to join...</p>
+                <p className="text-lg">
+                  {callStatus === 'waiting' ? 'Waiting for call to start...' :
+                   callStatus === 'connecting' ? 'Connecting to participant...' :
+                   'Waiting for participant to join...'}
+                </p>
               </div>
             </div>
           )}
@@ -446,22 +460,13 @@ const VideoCall = ({ isOpen, onClose, workspaceId, participantInfo }) => {
             <ComputerDesktopIcon className="w-6 h-6 text-white" />
           </button>
 
-          {/* Call/End Call */}
-          {callStatus === 'connecting' && !isCaller ? (
-            <button
-              onClick={startCall}
-              className="p-3 bg-green-600 hover:bg-green-500 rounded-full transition-colors"
-            >
-              <PhoneIcon className="w-6 h-6 text-white" />
-            </button>
-          ) : (
-            <button
-              onClick={endCall}
-              className="p-3 bg-red-600 hover:bg-red-500 rounded-full transition-colors"
-            >
-              <PhoneIcon className="w-6 h-6 text-white transform rotate-180" />
-            </button>
-          )}
+          {/* End Call */}
+          <button
+            onClick={endCall}
+            className="p-3 bg-red-600 hover:bg-red-500 rounded-full transition-colors"
+          >
+            <PhoneIcon className="w-6 h-6 text-white transform rotate-180" />
+          </button>
         </div>
       </motion.div>
     </div>
