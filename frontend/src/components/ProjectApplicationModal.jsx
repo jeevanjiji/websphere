@@ -52,7 +52,28 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
           questions: ''
         });
       } else {
-        toast.error(data.message || 'Failed to submit application');
+        // Check if it's a profile completion issue
+        if (data.requiresProfileCompletion) {
+          toast.error(
+            <div>
+              <p className="font-semibold">Profile Incomplete</p>
+              <p className="text-sm mt-1">{data.message}</p>
+              <button 
+                onClick={() => {
+                  toast.dismiss();
+                  // Navigate to profile page - you might want to use router here
+                  window.location.href = '/profile';
+                }}
+                className="mt-2 text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+              >
+                Complete Profile
+              </button>
+            </div>,
+            { duration: 8000 }
+          );
+        } else {
+          toast.error(data.message || 'Failed to submit application');
+        }
       }
     } catch (error) {
       console.error('Error submitting application:', error);

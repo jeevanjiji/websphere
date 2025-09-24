@@ -20,6 +20,23 @@ router.post('/', auth(['freelancer']), async (req, res) => {
       attachments = []
     } = req.body;
 
+    // Check if freelancer profile is complete
+    const freelancer = await User.findById(req.user.userId);
+    if (!freelancer) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!freelancer.isFreelancerProfileComplete()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please complete your profile before applying to projects. Your profile must include a bio (minimum 50 characters) and at least 3 skills.',
+        requiresProfileCompletion: true
+      });
+    }
+
     // Validate required fields
     if (!projectId || !coverLetter || !proposedRate || !proposedTimeline) {
       return res.status(400).json({

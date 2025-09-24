@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-hot-toast';
 import ChatInterface from './ChatInterface';
+import FileViewer from './FileViewerNew';
+import VideoCall from './VideoCall';
 import { 
   ChatBubbleLeftRightIcon, 
   FolderIcon, 
   FlagIcon, 
   ArchiveBoxIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  EyeIcon,
+  VideoCameraIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
 const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   console.log('🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
   
   const { user } = useAuth();
+  const { isUserOnline, socket } = useSocket();
   console.log('🔍 WorkspaceInterface: User from AuthContext:', user);
   const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +41,12 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const [approvalAction, setApprovalAction] = useState(''); // 'approve' or 'reject'
   const [reviewNotes, setReviewNotes] = useState('');
   const [skipNextMilestoneFetch, setSkipNextMilestoneFetch] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [showFileViewer, setShowFileViewer] = useState(false);
+
+  // Video call state
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [otherParticipant, setOtherParticipant] = useState(null);
 
   // Fetch workspace data
   useEffect(() => {
@@ -416,6 +429,88 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     }
   };
 
+  const handleFileView = (file) => {
+    setSelectedFile(file);
+    setShowFileViewer(true);
+  };
+
+  const closeFileViewer = () => {
+    setSelectedFile(null);
+    setShowFileViewer(false);
+  };
+
+  const handleStartVideoCall = () => {
+    // Determine the other participant based on current user
+    let participant = null;
+    
+    if (workspace.client && workspace.freelancer) {
+      if (user._id === workspace.client._id) {
+        // Current user is client, other participant is freelancer
+        participant = workspace.freelancer;
+      } else {
+        // Current user is freelancer, other participant is client
+        participant = workspace.client;
+      }
+    }
+
+    if (!participant) {
+      toast.error('Could not identify the other participant');
+      return;
+    }
+
+    // Check if the other participant is online
+    if (!isUserOnline(participant._id)) {
+      toast.warning(`${participant.fullName} is currently offline. They will receive a notification about the call.`);
+    }
+
+    setOtherParticipant(participant);
+    setShowVideoCall(true);
+    
+    // Emit video call initiation through socket
+    if (socket) {
+      socket.emit('video-call-request', {
+        workspaceId: workspace._id,
+        fromUser: user,
+        toUser: participant,
+        projectTitle: workspace.project?.title
+      });
+    }
+    
+    toast.success(`Starting video call with ${participant.fullName}...`);
+  };
+
+  const closeVideoCall = () => {
+    setShowVideoCall(false);
+    setOtherParticipant(null);
+  };
+
+  const handleFileDownload = (file) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to download files');
+        return;
+      }
+
+      // Create download URL using workspace ID
+      const downloadUrl = `http://localhost:5000/api/files/workspaces/${workspace._id}/download/${file._id || file.id}`;
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = `${downloadUrl}?token=${token}`;
+      link.target = '_blank';
+      link.download = file.filename || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Download started!');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error('Failed to download file');
+    }
+  };
+
   if (loading) {
     console.log('🔍 WorkspaceInterface: Currently loading...');
     return (
@@ -471,13 +566,73 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
             <p className="text-sm text-gray-500">
               Project: {workspace.project?.title}
             </p>
+            
+            {/* Online Status Indicator */}
+            {workspace.client && workspace.freelancer && (
+              <div className="flex items-center space-x-6 mt-3">
+                {console.log('🔍 Workspace client ID:', workspace.client._id)}
+                {console.log('🔍 Workspace freelancer ID:', workspace.freelancer._id)}
+                {console.log('🔍 Current user ID:', user._id)}
+                {/* Client Status */}
+                {user._id !== workspace.client._id && (
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isUserOnline(workspace.client._id) ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></div>
+                      <span className="text-sm text-gray-600">
+                        {workspace.client.fullName} 
+                        <span className={`ml-1 ${
+                          isUserOnline(workspace.client._id) ? 'text-green-600' : 'text-gray-500'
+                        }`}>
+                          ({isUserOnline(workspace.client._id) ? 'Online' : 'Offline'})
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Freelancer Status */}
+                {user._id !== workspace.freelancer._id && (
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        isUserOnline(workspace.freelancer._id) ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></div>
+                      <span className="text-sm text-gray-600">
+                        {workspace.freelancer.fullName}
+                        <span className={`ml-1 ${
+                          isUserOnline(workspace.freelancer._id) ? 'text-green-600' : 'text-gray-500'
+                        }`}>
+                          ({isUserOnline(workspace.freelancer._id) ? 'Online' : 'Offline'})
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold"
-          >
-            ×
-          </button>
+          <div className="flex items-center space-x-3">
+            {/* Video Call Button - Show only when workspace is active */}
+            {workspace.status === 'active' && (
+              <button
+                onClick={handleStartVideoCall}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="Start video call with project participant"
+              >
+                <VideoCameraIcon className="w-5 h-5" />
+                <span>Video Call</span>
+              </button>
+            )}
+            
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -533,9 +688,14 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                 {files.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {files.map((file, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex items-center space-x-3">
-                          <FolderIcon className="w-8 h-8 text-blue-500" />
+                      <div 
+                        key={index} 
+                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center space-x-3 mb-3">
+                          <div className="relative">
+                            <FolderIcon className="w-8 h-8 text-blue-500" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">
                               {file.filename || `File ${index + 1}`}
@@ -547,6 +707,26 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                               {file.uploadDate ? new Date(file.uploadDate).toLocaleDateString() : 'Unknown date'}
                             </p>
                           </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleFileView(file)}
+                            className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-sm"
+                          >
+                            <EyeIcon className="w-4 h-4" />
+                            <span>View</span>
+                          </button>
+                          <button
+                            onClick={() => handleFileDownload(file)}
+                            className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors text-sm"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <span>Download</span>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -692,7 +872,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   {deliverables.map((deliverable, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1">
                           <h4 className="font-semibold text-lg">{deliverable.title}</h4>
                           <p className="text-gray-600 text-sm mt-1">{deliverable.description}</p>
                           <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
@@ -701,6 +881,35 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                               <span>Milestone: {deliverable.milestone.title}</span>
                             )}
                           </div>
+                          
+                          {/* Deliverable Files */}
+                          {deliverable.files && deliverable.files.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Attached Files:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {deliverable.files.map((file, fileIndex) => (
+                                  <div key={fileIndex} className="flex items-center space-x-1">
+                                    <button
+                                      onClick={() => handleFileView(file)}
+                                      className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm"
+                                    >
+                                      <EyeIcon className="w-4 h-4 mr-1" />
+                                      {file.filename || `File ${fileIndex + 1}`}
+                                    </button>
+                                    <button
+                                      onClick={() => handleFileDownload(file)}
+                                      className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-sm"
+                                      title="Download file"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           deliverable.status === 'approved' ? 'bg-green-100 text-green-800' :
@@ -912,6 +1121,23 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           onSubmit={submitDeliverable}
           onClose={() => setShowDeliverableForm(false)}
           submitting={submittingDeliverable}
+        />
+      )}
+
+      {/* File Viewer Modal */}
+      <FileViewer
+        file={selectedFile}
+        isOpen={showFileViewer}
+        onClose={closeFileViewer}
+      />
+
+      {/* Video Call Modal */}
+      {showVideoCall && (
+        <VideoCall
+          isOpen={showVideoCall}
+          onClose={closeVideoCall}
+          workspaceId={workspace?._id}
+          participantInfo={otherParticipant}
         />
       )}
     </div>

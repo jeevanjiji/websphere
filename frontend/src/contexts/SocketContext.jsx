@@ -37,6 +37,8 @@ export const SocketProvider = ({ children }) => {
         // Tell server user is online
         const userId = user.id || user._id || user.userId;
         console.log('📡 Emitting user-online for userId:', userId);
+        console.log('👤 Full user object:', JSON.stringify(user, null, 2));
+        console.log('🔌 Socket ID:', newSocket.id);
         newSocket.emit('user-online', userId);
       });
 
@@ -47,17 +49,19 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for online users updates
       newSocket.on('online-users', (users) => {
+        console.log('👥 Received online users:', users);
         setOnlineUsers(users);
       });
 
       newSocket.on('user-status-change', (data) => {
+        console.log('👤 User status change received:', data);
         const { userId, status } = data;
         setOnlineUsers(prev => {
-          if (status === 'online') {
-            return [...prev.filter(id => id !== userId), userId];
-          } else {
-            return prev.filter(id => id !== userId);
-          }
+          const updated = status === 'online' 
+            ? [...prev.filter(id => id !== userId), userId]
+            : prev.filter(id => id !== userId);
+          console.log('👥 Updated online users:', updated);
+          return updated;
         });
       });
 
@@ -98,6 +102,57 @@ export const SocketProvider = ({ children }) => {
           
           return updated;
         });
+      });
+
+      // Listen for incoming video calls
+      newSocket.on('incoming-video-call', (callData) => {
+        console.log('📹 Incoming video call:', callData);
+        
+        // Show notification for incoming call
+        toast.success(`Incoming video call from ${callData.fromUser.fullName}`, {
+          duration: 10000, // 10 seconds for calls
+          dismissible: true,
+          position: 'top-center',
+          icon: '📹',
+        });
+        
+        // You can emit a custom event to be handled by the workspace component
+        window.dispatchEvent(new CustomEvent('incoming-video-call', { detail: callData }));
+      });
+
+      // Listen for call responses
+      newSocket.on('call-response-received', (responseData) => {
+        console.log('📹 Call response received:', responseData);
+        window.dispatchEvent(new CustomEvent('call-response-received', { detail: responseData }));
+      });
+
+      newSocket.on('call-request-sent', (data) => {
+        console.log('📹 Call request sent:', data);
+        toast.success(`Video call request sent to ${data.toUser.fullName}`);
+      });
+
+      newSocket.on('call-request-failed', (data) => {
+        console.log('📹 Call request failed:', data);
+        toast.error(`Failed to reach ${data.toUser.fullName}: ${data.reason}`);
+      });
+
+      // WebRTC signaling events
+      newSocket.on('webrtc-offer', (data) => {
+        window.dispatchEvent(new CustomEvent('webrtc-offer', { detail: data }));
+      });
+
+      newSocket.on('webrtc-answer', (data) => {
+        window.dispatchEvent(new CustomEvent('webrtc-answer', { detail: data }));
+      });
+
+      newSocket.on('webrtc-ice-candidate', (data) => {
+        window.dispatchEvent(new CustomEvent('webrtc-ice-candidate', { detail: data }));
+      });
+
+      newSocket.on('call-ended', (data) => {
+        console.log('📹 Call ended:', data);
+        toast.info(`Video call ended by ${data.endedBy?.fullName || 'other participant'}`);
+        window.dispatchEvent(new CustomEvent('call-ended', { detail: data }));
       });
 
       // Listen for project updates
@@ -173,8 +228,11 @@ export const SocketProvider = ({ children }) => {
   };
 
   const isUserOnline = (userId) => {
-    console.log('🔍 Checking online status for userId:', userId, 'in onlineUsers:', onlineUsers);
-    return onlineUsers.includes(userId);
+    const isOnline = onlineUsers.includes(userId);
+    console.log('🔍 Checking online status for userId:', userId);
+    console.log('👥 Current onlineUsers array:', onlineUsers);
+    console.log('✅ Result:', isOnline);
+    return isOnline;
   };
 
   const getTypingUsersForChat = (chatId) => {

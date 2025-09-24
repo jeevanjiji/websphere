@@ -81,6 +81,54 @@ router.get('/workspaces/:workspaceId/download/:fileId', auth(['client', 'freelan
   }
 });
 
+// GET /api/files/download/:fileId - Simple download file by ID
+router.get('/download/:fileId', auth(['client', 'freelancer']), async (req, res) => {
+  try {
+    const { fileId } = req.params;
+
+    console.log('🔥 SIMPLE DOWNLOAD FILE - ID:', fileId);
+
+    const file = await WorkspaceFile.findOne({ 
+      _id: fileId,
+      status: 'active'
+    }).populate({
+      path: 'workspace',
+      select: 'client freelancer'
+    });
+
+    if (!file) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+
+    // Check if user has access to this file
+    const isClient = file.workspace.client.toString() === req.user.id;
+    const isFreelancer = file.workspace.freelancer.toString() === req.user.id;
+
+    if (!isClient && !isFreelancer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this file'
+      });
+    }
+
+    console.log('✅ File found, redirecting to:', file.url);
+    
+    // Redirect to Cloudinary URL for download
+    res.redirect(file.url);
+    
+  } catch (error) {
+    console.error('❌ Error downloading file:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download file',
+      error: error.message
+    });
+  }
+});
+
 // DELETE /api/files/workspaces/:workspaceId/:fileId - Delete file
 router.delete('/workspaces/:workspaceId/:fileId', auth(['client', 'freelancer']), checkWorkspaceAccess, async (req, res) => {
   try {

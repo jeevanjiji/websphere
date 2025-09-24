@@ -201,6 +201,15 @@ try {
   console.error('❌ Failed to load milestones router:', err.message);
 }
 
+// Notifications router
+try {
+  const notificationsRouter = require('./routes/notifications');
+  app.use('/api/notifications', notificationsRouter);
+  console.log('✅ Notifications router connected → /api/notifications');
+} catch (err) {
+  console.error('❌ Failed to load notifications router:', err.message);
+}
+
 /* ──────────────────────────────────────────
    Health Check Route
 ────────────────────────────────────────── */
@@ -396,14 +405,30 @@ io.on('connection', (socket) => {
   // Handle user joining
   socket.on('user-online', (userId) => {
     if (userId) {
-      console.log(`✅ User ${userId} is now online`);
+      console.log(`✅ User ${userId} is now online (Socket: ${socket.id})`);
+      console.log(`📊 Current online users before adding: [${Array.from(onlineUsers.keys()).join(', ')}]`);
+      
+      // Check if user was already online with different socket
+      for (const [existingUserId, userData] of onlineUsers.entries()) {
+        if (existingUserId === userId && userData.socketId !== socket.id) {
+          console.log(`🔄 User ${userId} was already online with different socket ${userData.socketId}, updating...`);
+          onlineUsers.delete(existingUserId);
+        }
+      }
+      
       onlineUsers.set(userId, {
         socketId: socket.id,
         userId: userId,
         lastSeen: new Date()
       });
       
-      // Broadcast to all clients that user is online
+      // Send updated online users list to all clients (including the newly connected user)
+      const onlineUsersList = Array.from(onlineUsers.keys());
+      console.log(`📊 Broadcasting online users list: [${onlineUsersList.join(', ')}]`);
+      console.log(`📊 Total online users: ${onlineUsers.size}`);
+      io.emit('online-users', onlineUsersList);
+      
+      // Also broadcast status change for compatibility
       socket.broadcast.emit('user-status-change', {
         userId: userId,
         status: 'online',
@@ -499,21 +524,136 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle video call requests
+  socket.on('video-call-request', (callData) => {
+    console.log('📹 Video call request:', callData);
+    
+    // Find the target user's socket
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === callData.toUser._id) {
+        // Send call request to target user
+        io.to(userData.socketId).emit('incoming-video-call', {
+          callId: `call_${Date.now()}`,
+          fromUser: callData.fromUser,
+          workspaceId: callData.workspaceId,
+          projectTitle: callData.projectTitle,
+          timestamp: new Date()
+        });
+        
+        // Confirm to caller that request was sent
+        socket.emit('call-request-sent', {
+          toUser: callData.toUser,
+          status: 'sent'
+        });
+        return;
+      }
+    }
+    
+    // Target user is offline
+    socket.emit('call-request-failed', {
+      toUser: callData.toUser,
+      reason: 'User is offline'
+    });
+  });
+
+  // Handle video call responses
+  socket.on('video-call-response', (responseData) => {
+    console.log('📹 Video call response:', responseData);
+    
+    // Find the caller's socket
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === responseData.callerId) {
+        io.to(userData.socketId).emit('call-response-received', {
+          callId: responseData.callId,
+          accepted: responseData.accepted,
+          responder: responseData.responder
+        });
+        return;
+      }
+    }
+  });
+
+  // Handle WebRTC signaling
+  socket.on('webrtc-offer', (data) => {
+    console.log('📹 WebRTC offer:', data.callId);
+    
+    // Forward offer to target user
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === data.targetUserId) {
+        io.to(userData.socketId).emit('webrtc-offer', data);
+        return;
+      }
+    }
+  });
+
+  socket.on('webrtc-answer', (data) => {
+    console.log('📹 WebRTC answer:', data.callId);
+    
+    // Forward answer to caller
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === data.targetUserId) {
+        io.to(userData.socketId).emit('webrtc-answer', data);
+        return;
+      }
+    }
+  });
+
+  socket.on('webrtc-ice-candidate', (data) => {
+    console.log('📹 WebRTC ICE candidate:', data.callId);
+    
+    // Forward ICE candidate to target user
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === data.targetUserId) {
+        io.to(userData.socketId).emit('webrtc-ice-candidate', data);
+        return;
+      }
+    }
+  });
+
+  socket.on('video-call-ended', (data) => {
+    console.log('📹 Video call ended:', data.callId);
+    
+    // Notify other participant
+    for (const [userId, userData] of onlineUsers.entries()) {
+      if (userId === data.targetUserId) {
+        io.to(userData.socketId).emit('call-ended', {
+          callId: data.callId,
+          endedBy: data.endedBy
+        });
+        return;
+      }
+    }
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('👤 User disconnected:', socket.id);
+    console.log(`📊 Online users before disconnect: [${Array.from(onlineUsers.keys()).join(', ')}]`);
     
     // Find and remove user from online users
+    let removedUserId = null;
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userData.socketId === socket.id) {
         onlineUsers.delete(userId);
-        socket.broadcast.emit('user-status-change', {
-          userId: userId,
-          status: 'offline',
-          timestamp: new Date()
-        });
+        removedUserId = userId;
+        console.log(`❌ User ${userId} is now offline (Socket: ${socket.id})`);
         break;
       }
+    }
+    
+    if (removedUserId) {
+      // Send updated online users list to all remaining clients
+      const onlineUsersList = Array.from(onlineUsers.keys());
+      console.log(`📊 Broadcasting updated online users after disconnect: [${onlineUsersList.join(', ')}]`);
+      console.log(`📊 Remaining online users: ${onlineUsers.size}`);
+      socket.broadcast.emit('online-users', onlineUsersList);
+      
+      // Also send status change for compatibility
+      socket.broadcast.emit('user-status-change', {
+        userId: removedUserId,
+        status: 'offline',
+        timestamp: new Date()
+      });
     }
     
     // Remove from typing users

@@ -20,9 +20,14 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
       budgetMax,
       budgetType,
       page = 1,
-      limit = 10
+      limit = 10,
+      showAllProjects = false // Flag to show all projects or only skill-matched ones
     } = req.query;
 
+    // Get freelancer's skills for filtering
+    const User = require('../models/User');
+    const freelancer = await User.findById(req.user.userId).select('skills');
+    
     // Build query for open projects
     let query = { status: 'open' };
 
@@ -36,8 +41,12 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
 
     // Add skills filter
     if (skills) {
+      // Manual skill filter from query params
       const skillsArray = skills.split(',').map(s => s.trim());
       query.skills = { $in: skillsArray };
+    } else if (!showAllProjects && freelancer && freelancer.skills && freelancer.skills.length > 0) {
+      // Auto-filter by freelancer's skills if no manual filter and showAllProjects is false
+      query.skills = { $in: freelancer.skills };
     }
 
     // Add budget filters

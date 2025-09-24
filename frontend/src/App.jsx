@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import './styles/toast.css';
@@ -23,8 +23,34 @@ import ResetPassword from './pages/ResetPassword';
 import GoogleAuthProvider from './components/GoogleOAuthProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
+import notificationService from './services/notificationService';
 
 function App() {
+  useEffect(() => {
+    // Initialize notification service
+    const initNotifications = async () => {
+      try {
+        // Request notification permission
+        await notificationService.requestPermission();
+        
+        // Setup notification handlers
+        notificationService.setupNotificationHandlers();
+        
+        // Setup WebSocket notifications
+        notificationService.setupWebSocketNotifications();
+        
+        console.log('Notification service initialized');
+      } catch (error) {
+        console.error('Failed to initialize notifications:', error);
+      }
+    };
+
+    // Only initialize if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      initNotifications();
+    }
+  }, []);
   return (
     <AuthProvider>
       <SocketProvider>
