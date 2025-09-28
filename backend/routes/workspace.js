@@ -734,6 +734,62 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
   }
 });
 
+// GET /api/workspaces/:workspaceId/payments - Get payment history for workspace
+router.get('/:workspaceId/payments', auth(['client', 'freelancer']), checkWorkspaceAccess, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    console.log('🔍 Fetching payments for workspace:', workspaceId);
+
+    // Get all milestones for this workspace with payment information
+    const milestones = await Milestone.find({ 
+      workspace: workspaceId,
+      paymentStatus: { $in: ['completed', 'processing'] }
+    })
+    .populate('workspace', 'project')
+    .populate({
+      path: 'workspace',
+      populate: {
+        path: 'project',
+        select: 'title'
+      }
+    })
+    .sort({ paidDate: -1, createdAt: -1 });
+
+    // Transform milestones into payment records
+    const payments = milestones.map(milestone => ({
+      _id: milestone._id,
+      milestone: {
+        _id: milestone._id,
+        title: milestone.title,
+        description: milestone.description
+      },
+      amount: milestone.amount,
+      currency: milestone.currency || 'INR',
+      status: milestone.paymentStatus,
+      paymentMethod: milestone.paymentDetails?.method || 'Razorpay',
+      razorpay_payment_id: milestone.paymentDetails?.razorpay_payment_id,
+      paidAt: milestone.paidDate || milestone.paymentDetails?.paidAt,
+      createdAt: milestone.createdAt,
+      project: milestone.workspace?.project
+    }));
+
+    console.log('✅ Found payments:', payments.length);
+
+    res.json({
+      success: true,
+      data: payments
+    });
+  } catch (error) {
+    console.error('❌ Error fetching payments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payments',
+      error: error.message
+    });
+  }
+});
+
 // Add multer error handling middleware
 router.use(handleMulterError);
 

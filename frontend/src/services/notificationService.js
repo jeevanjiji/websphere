@@ -63,9 +63,10 @@ class NotificationService {
       
       if (!subscription) {
         // Subscribe to push notifications
+        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BM8Z8R2V2Q3...';
         subscription = await this.registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: this.urlBase64ToUint8Array(process.env.REACT_APP_VAPID_PUBLIC_KEY || 'BM8Z8R2V2Q3...')
+          applicationServerKey: this.urlBase64ToUint8Array(vapidKey)
         });
       }
 

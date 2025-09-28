@@ -156,6 +156,7 @@ const milestoneSchema = new mongoose.Schema({
     paidAt: { type: Date }
   },
   paymentFailureReason: { type: String },
+  paymentFailureCode: { type: String },
   
   // Escrow fields (for advanced payment protection)
   escrowStatus: {

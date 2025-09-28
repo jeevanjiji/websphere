@@ -24,9 +24,9 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
       showAllProjects = false // Flag to show all projects or only skill-matched ones
     } = req.query;
 
-    // Get freelancer's skills for filtering
+    // Get freelancer's profile for filtering
     const User = require('../models/User');
-    const freelancer = await User.findById(req.user.userId).select('skills');
+    const freelancer = await User.findById(req.user.userId).select('profile.skills profile.categories');
     
     // Build query for open projects
     let query = { status: 'open' };
@@ -44,10 +44,11 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
       // Manual skill filter from query params
       const skillsArray = skills.split(',').map(s => s.trim());
       query.skills = { $in: skillsArray };
-    } else if (!showAllProjects && freelancer && freelancer.skills && freelancer.skills.length > 0) {
+    } else if (!showAllProjects && freelancer && freelancer.profile?.skills && freelancer.profile.skills.length > 0) {
       // Auto-filter by freelancer's skills if no manual filter and showAllProjects is false
-      query.skills = { $in: freelancer.skills };
+      query.skills = { $in: freelancer.profile.skills };
     }
+    // If freelancer has no skills or showAllProjects is true, show all projects (no skill filter)
 
     // Add budget filters
     if (budgetType) {
@@ -73,7 +74,10 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
     const totalProjects = await Project.countDocuments(query);
     const totalPages = Math.ceil(totalProjects / parseInt(limit));
 
+    console.log('✅ Query used:', JSON.stringify(query, null, 2));
+    console.log('✅ Freelancer skills:', freelancer?.profile?.skills || 'No skills set');
     console.log('✅ Found', projects.length, 'open projects for browsing');
+    
     res.json({
       success: true,
       projects,
@@ -83,6 +87,11 @@ router.get('/browse', auth(['freelancer']), async (req, res) => {
         totalProjects,
         hasNextPage: parseInt(page) < totalPages,
         hasPrevPage: parseInt(page) > 1
+      },
+      debug: {
+        totalOpenProjects: await Project.countDocuments({ status: 'open' }),
+        freelancerSkills: freelancer?.profile?.skills || [],
+        queryUsed: query
       }
     });
   } catch (error) {

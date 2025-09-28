@@ -26,14 +26,21 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         throw new Error(data.message);
       }
 
-      // Initialize Razorpay payment
+      // Initialize Razorpay payment with minimal config to show all default methods
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_RKKI5YvBWNfh2o',
+        key: 'rzp_test_RKKI5YvBWNfh2o', // Use direct test key to ensure it's working
         amount: data.data.amount,
         currency: data.data.currency,
         name: 'WebSphere Payments',
         description: `Payment for milestone: ${milestone.title}`,
         order_id: data.data.orderId,
+        // Standard Razorpay config that should show UPI
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,  
+          wallet: true
+        },
         handler: async function (response) {
           try {
             // Verify payment
@@ -70,20 +77,30 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
             setProcessing(false);
           }
         },
-        prefill: {
-          name: data.data.freelancer.name,
-          email: data.data.freelancer.email
-        },
         theme: {
           color: '#3B82F6'
         }
       };
 
+      console.log('Razorpay options:', options);
+      console.log('Razorpay key being used:', options.key);
+      console.log('Payment amount in paise:', options.amount);
+      console.log('Payment amount in rupees:', options.amount / 100);
+      
       const rzp = new window.Razorpay(options);
       
       rzp.on('payment.failed', async function (response) {
         console.error('Payment failed:', response.error);
-        toast.error(`Payment failed: ${response.error.description}`);
+        
+        // Handle UPI-specific errors
+        let errorMessage = response.error.description;
+        if (response.error.code === 'BAD_REQUEST_ERROR' && response.error.description.includes('UPI')) {
+          errorMessage = 'UPI payment failed. Please try using a different UPI ID or payment method.';
+        } else if (response.error.code === 'BAD_REQUEST_ERROR' && response.error.description.includes('VPA')) {
+          errorMessage = 'Invalid UPI ID. Please check and try again.';
+        }
+        
+        toast.error(`Payment failed: ${errorMessage}`);
         
         // Report failure to backend
         await fetch('http://localhost:5000/api/payments/milestone/failure', {
@@ -94,7 +111,8 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
           },
           body: JSON.stringify({
             orderId: data.data.orderId,
-            reason: response.error.description
+            reason: response.error.description,
+            errorCode: response.error.code
           })
         });
         
@@ -146,18 +164,8 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
                   className="h-6 mr-2"
                   onError={(e) => {e.target.style.display = 'none'}}
                 />
-                <span>Razorpay (Cards, UPI, Net Banking)</span>
+                <span>Razorpay (Cards, UPI, Net Banking, Wallets, EMI, Pay Later)</span>
               </div>
-            </label>
-            
-            <label className="flex items-center opacity-50 cursor-not-allowed">
-              <input
-                type="radio"
-                value="stripe"
-                disabled
-                className="mr-3"
-              />
-              <span>Stripe (Coming Soon)</span>
             </label>
           </div>
         </div>
@@ -167,7 +175,21 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
             <span className="text-blue-600 mr-2">ℹ️</span>
             <div className="text-sm text-blue-800">
               <p className="font-medium mb-1">Secure Payment</p>
-              <p>Your payment is processed securely through Razorpay. The amount will be released to the freelancer once you confirm milestone completion.</p>
+              <p>Your payment is processed securely through Razorpay. Choose from multiple payment options including credit/debit cards, UPI (PhonePe, GPay, Paytm), net banking, digital wallets, EMI, and pay later options. The amount will be released to the freelancer once you confirm milestone completion.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 p-4 bg-yellow-50 rounded-lg">
+          <div className="flex items-start">
+            <span className="text-yellow-600 mr-2">🧪</span>
+            <div className="text-sm text-yellow-800">
+              <p className="font-medium mb-1">Test Mode Instructions</p>
+              <p>For UPI testing in sandbox mode, use these test UPI IDs:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li><strong>success@razorpay</strong> - Simulates successful payment</li>
+                <li><strong>failure@razorpay</strong> - Simulates failed payment</li>
+              </ul>
             </div>
           </div>
         </div>

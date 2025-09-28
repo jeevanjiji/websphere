@@ -38,7 +38,7 @@ const FreelancerDashboard = () => {
         rating: 4.8,
         reviews: 23
       },
-      skills: ["React", "Node.js", "MongoDB", "Stripe"],
+      skills: ["React", "Node.js", "MongoDB", "Razorpay"],
       postedDate: "2 days ago",
       proposals: 12
     },

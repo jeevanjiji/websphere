@@ -16,6 +16,7 @@ import Badge from './ui/Badge';
 import ProjectApplicationsList from './ProjectApplicationsList';
 import ChatInterface from './ChatInterface';
 import WorkspaceInterfaceFixed from './WorkspaceInterfaceFixed';
+import ErrorBoundary from './ErrorBoundary';
 import SimplePostProjectForm from './SimplePostProjectForm';
 import ClientTour from './ClientTour';
 import { toast } from 'react-hot-toast';
@@ -437,11 +438,13 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
 
       {/* Workspace Modal */}
       {workspaceModal.isOpen && (
-        <WorkspaceInterfaceFixed
-          projectId={workspaceModal.projectId}
-          applicationId={workspaceModal.applicationId}
-          onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
-        />
+        <ErrorBoundary>
+          <WorkspaceInterfaceFixed
+            projectId={workspaceModal.projectId}
+            applicationId={workspaceModal.applicationId}
+            onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Client Tour */}

@@ -8,9 +8,11 @@ router.post('/milestone/create', auth(['client']), async (req, res) => {
   try {
     const { milestoneId } = req.body;
     
-    console.log('🔥 CREATE MILESTONE PAYMENT - Milestone:', milestoneId, 'Client:', req.user.id);
+    console.log('🔥 CREATE MILESTONE PAYMENT - Request body:', req.body);
+    console.log('🔥 CREATE MILESTONE PAYMENT - Milestone:', milestoneId, 'Client:', req.user.userId);
+    console.log('🔥 CREATE MILESTONE PAYMENT - User object:', req.user);
 
-    const paymentOrder = await PaymentService.createMilestonePayment(milestoneId, req.user.id);
+    const paymentOrder = await PaymentService.createMilestonePayment(milestoneId, req.user.userId);
 
     console.log('✅ Payment order created successfully');
     res.json({
@@ -20,6 +22,7 @@ router.post('/milestone/create', auth(['client']), async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error creating payment order:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(400).json({
       success: false,
       message: error.message
@@ -54,11 +57,11 @@ router.post('/milestone/verify', auth(['client']), async (req, res) => {
 // POST /api/payments/milestone/failure - Handle payment failure
 router.post('/milestone/failure', auth(['client']), async (req, res) => {
   try {
-    const { orderId, reason } = req.body;
+    const { orderId, reason, errorCode } = req.body;
     
-    console.log('🔥 PAYMENT FAILURE - Order:', orderId, 'Reason:', reason);
+    console.log('🔥 PAYMENT FAILURE - Order:', orderId, 'Reason:', reason, 'Error Code:', errorCode);
 
-    await PaymentService.handlePaymentFailure(orderId, reason);
+    await PaymentService.handlePaymentFailure(orderId, reason, errorCode);
 
     res.json({
       success: true,
@@ -103,7 +106,7 @@ router.post('/escrow/create', auth(['client']), async (req, res) => {
     
     console.log('🔥 CREATE ESCROW - Milestone:', milestoneId);
 
-    const escrow = await PaymentService.createEscrow(milestoneId, req.user.id);
+    const escrow = await PaymentService.createEscrow(milestoneId, req.user.userId);
 
     console.log('✅ Escrow created successfully');
     res.json({

@@ -257,12 +257,32 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
     }
 
     // Update application status
-    application.status = action === 'accept' ? 'accepted' : 'rejected';
+    application.status = action === 'accept' ? 'awarded' : 'rejected';
     application.respondedAt = new Date();
-    await application.save();
 
-    // If accepted, create a chat for communication
+    // If accepted, directly award the project
     if (action === 'accept') {
+      // Update project status and award it
+      const project = await Project.findById(application.project._id);
+      project.status = 'awarded';
+      project.awardedTo = application.freelancer._id;
+      project.awardedApplication = application._id;
+      project.finalRate = application.proposedRate;
+      project.finalTimeline = application.proposedTimeline;
+      project.awardedAt = new Date();
+      await project.save();
+
+      // Reject all other applications for this project
+      await Application.updateMany(
+        { 
+          project: application.project._id,
+          _id: { $ne: req.params.applicationId },
+          status: { $in: ['pending', 'accepted'] }
+        },
+        { status: 'rejected' }
+      );
+
+      // Create a chat for communication
       const chat = new Chat({
         project: application.project._id,
         application: application._id,
@@ -273,11 +293,11 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
       });
       await chat.save();
 
-      // Create initial system message
+      // Create initial system message about project award
       const systemMessage = new Message({
         chat: chat._id,
         sender: req.user.userId,
-        content: `Application accepted! You can now discuss project details and negotiate terms.`,
+        content: `🎉 Congratulations! Project "${application.project.title}" has been awarded to ${application.freelancer.fullName}. Final rate: Rs.${application.proposedRate}. Timeline: ${application.proposedTimeline}`,
         messageType: 'system'
       });
       await systemMessage.save();
@@ -285,19 +305,14 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
       chat.lastMessage = systemMessage._id;
       chat.lastActivity = new Date();
       await chat.save();
-
-      // If this is the first acceptance, update project status
-      if (application.project.status === 'open') {
-        await Project.findByIdAndUpdate(application.project._id, {
-          status: 'in_progress'
-        });
-      }
     }
 
-    console.log('✅ Application', action + 'ed successfully');
+    await application.save();
+
+    console.log('✅ Application', action === 'accept' ? 'selected and project awarded' : 'rejected', 'successfully');
     res.json({
       success: true,
-      message: `Application ${action}ed successfully`,
+      message: action === 'accept' ? 'Project awarded successfully' : 'Application rejected successfully',
       application,
       chatCreated: action === 'accept'
     });
@@ -354,15 +369,33 @@ router.put('/:applicationId/status', auth(['client']), async (req, res) => {
     }
 
     // Update application status
-    application.status = status;
+    application.status = status === 'accepted' ? 'awarded' : 'rejected';
     application.respondedAt = new Date();
-    await application.save();
 
     let chatId = null;
     let workspaceId = null;
 
-    // If accepted, create a chat for communication and workspace
+    // If accepted, directly award the project
     if (status === 'accepted') {
+      // Update project status and award it
+      const project = await Project.findById(application.project._id);
+      project.status = 'awarded';
+      project.awardedTo = application.freelancer._id;
+      project.awardedApplication = application._id;
+      project.finalRate = application.proposedRate;
+      project.finalTimeline = application.proposedTimeline;
+      project.awardedAt = new Date();
+      await project.save();
+
+      // Reject all other applications for this project
+      await Application.updateMany(
+        { 
+          project: application.project._id,
+          _id: { $ne: req.params.applicationId },
+          status: { $in: ['pending', 'accepted'] }
+        },
+        { status: 'rejected' }
+      );
       const { Chat, Message } = require('../models/Chat');
       const Workspace = require('../models/Workspace');
       
@@ -377,11 +410,11 @@ router.put('/:applicationId/status', auth(['client']), async (req, res) => {
       await chat.save();
       chatId = chat._id;
 
-      // Create initial system message
+      // Create initial system message about project award
       const systemMessage = new Message({
         chat: chat._id,
         sender: req.user.userId,
-        content: `Application accepted! You can now discuss project details and negotiate terms.`,
+        content: `🎉 Congratulations! Project "${application.project.title}" has been awarded to ${application.freelancer.fullName}. Final rate: Rs.${application.proposedRate}. Timeline: ${application.proposedTimeline}`,
         messageType: 'system'
       });
       await systemMessage.save();
@@ -414,18 +447,14 @@ router.put('/:applicationId/status', auth(['client']), async (req, res) => {
         // Don't fail the entire operation if workspace creation fails
       }
 
-      // If this is the first acceptance, update project status
-      if (application.project.status === 'open') {
-        await Project.findByIdAndUpdate(application.project._id, {
-          status: 'in_progress'
-        });
-      }
     }
 
-    console.log('✅ Application status updated successfully');
+    await application.save();
+
+    console.log('✅ Application', status === 'accepted' ? 'selected and project awarded' : 'rejected', 'successfully');
     res.json({
       success: true,
-      message: `Application ${status} successfully`,
+      message: status === 'accepted' ? 'Project awarded successfully' : 'Application rejected successfully',
       application,
       chatId: chatId,
       workspaceId: workspaceId,

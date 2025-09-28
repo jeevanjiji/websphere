@@ -61,8 +61,8 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
               <button 
                 onClick={() => {
                   toast.dismiss();
-                  // Navigate to profile page - you might want to use router here
-                  window.location.href = '/profile';
+                  // Navigate to freelancer profile setup page
+                  window.location.href = '/freelancer-profile-setup';
                 }}
                 className="mt-2 text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
               >

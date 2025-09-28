@@ -29,7 +29,8 @@ export const SocketProvider = ({ children }) => {
   // Initialize socket connection
   useEffect(() => {
     if (isAuthenticated && user) {
-      const newSocket = io(process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000', {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:5000');
+      const newSocket = io(apiBaseUrl, {
         withCredentials: true,
         transports: ['websocket', 'polling']
       });

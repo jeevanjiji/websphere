@@ -242,13 +242,13 @@ const FreelancerProfileSetup = () => {
   const updateBio = async (bio) => {
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('bio', bio);
-
       const response = await fetch('http://localhost:5000/api/auth/freelancer/auto-tag-bio', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         credentials: 'include',
-        body: formData
+        body: JSON.stringify({ bio })
       });
 
       const data = await response.json();
@@ -471,7 +471,7 @@ const ProfileInfoTab = ({ profileData, setProfileData, updateProfile, updateBio,
         <form onSubmit={handleBioSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Professional Bio (minimum 20 characters)
+              Professional Bio (minimum 50 characters)
             </label>
             <textarea
               name="bio"
@@ -484,8 +484,8 @@ const ProfileInfoTab = ({ profileData, setProfileData, updateProfile, updateBio,
               minLength={20}
             />
             <div className="mt-1 text-right">
-              <span className={`text-xs ${formData.bio.length >= 20 ? 'text-green-600' : 'text-gray-500'}`}>
-                {formData.bio.length}/20 characters
+              <span className={`text-xs ${formData.bio.length >= 50 ? 'text-green-600' : 'text-gray-500'}`}>
+                {formData.bio.length}/50 characters
               </span>
             </div>
           </div>
@@ -519,7 +519,7 @@ const ProfileInfoTab = ({ profileData, setProfileData, updateProfile, updateBio,
             type="submit"
             variant="primary"
             loading={loading}
-            disabled={loading || formData.bio.length < 20}
+            disabled={loading || formData.bio.length < 50}
           >
             Update Bio & Extract Skills
           </Button>

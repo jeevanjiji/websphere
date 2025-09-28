@@ -775,7 +775,7 @@ For support, email support@websphere.com or join our Slack channel.
 ## 📈 Future Enhancements
 
 - [ ] Real-time chat system
-- [ ] Payment integration (Stripe/PayPal)
+- [x] Payment integration (Razorpay - Full Support: Cards, UPI, Net Banking, Wallets, EMI, Pay Later)
 - [ ] Advanced search filters
 - [ ] Mobile application
 - [ ] API rate limiting

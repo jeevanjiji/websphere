@@ -18,7 +18,7 @@ const ProjectCards = ({ onCardClick }) => {
       description: "Looking for a skilled React developer to build a modern e-commerce platform with payment integration and responsive design.",
       budget: "₹2,00,000 - ₹4,00,000",
       timeline: "2-3 months",
-      skills: ["React", "Node.js", "MongoDB", "Stripe"],
+      skills: ["React", "Node.js", "MongoDB", "Razorpay"],
       client: "TechCorp Solutions",
       icon: CodeBracketIcon,
       color: "from-blue-500 to-purple-600",

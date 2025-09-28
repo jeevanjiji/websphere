@@ -54,10 +54,10 @@ router.post('/freelancer/auto-tag-bio', async (req, res) => {
 
     const { bio } = req.body;
 
-    if (!bio || bio.trim().length < 20) {
+    if (!bio || bio.trim().length < 50) {
       return res.status(400).json({
         success: false,
-        message: 'Bio must be at least 20 characters long'
+        message: 'Bio must be at least 50 characters long'
       });
     }
 
@@ -193,13 +193,10 @@ router.post('/login', async (req, res) => {
       profilePicture: user.profilePicture || null
     };
 
-    // Check freelancer profile completion - only show popup if they haven't seen it before
+    // Check freelancer profile completion - show popup if profile is incomplete
     let needsProfileSetup = false;
-    if (user.role === 'freelancer' && !user.isFreelancerProfileComplete() && !user.hasSeenProfileSetup) {
+    if (user.role === 'freelancer' && !user.isFreelancerProfileComplete()) {
       needsProfileSetup = true;
-      // Mark that they've seen the profile setup
-      user.hasSeenProfileSetup = true;
-      await user.save();
     }
 
     console.log('Login successful for user:', user.email);

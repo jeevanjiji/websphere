@@ -80,14 +80,23 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
 
       const data = await response.json();
       if (data.success) {
-        toast.success(`Application ${action}ed successfully`);
+        toast.success(data.message || `Application ${action}ed successfully`);
         
-        // Update application status locally
+        // Update application status locally - accepting now awards the project
         setApplications(prev => prev.map(app => 
           app._id === applicationId 
-            ? { ...app, status: action === 'accept' ? 'accepted' : 'rejected' }
+            ? { ...app, status: action === 'accept' ? 'awarded' : 'rejected' }
             : app
         ));
+
+        // If accepting, also reject other applications for this project
+        if (action === 'accept') {
+          setApplications(prev => prev.map(app => 
+            app._id !== applicationId && app.status === 'pending'
+              ? { ...app, status: 'rejected' }
+              : app
+          ));
+        }
 
         // Notify parent component
         onApplicationResponse && onApplicationResponse(data.application, data.chatCreated);
@@ -359,7 +368,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
                   className="flex items-center gap-2"
                 >
                   <CheckIcon className="h-4 w-4" />
-                  {respondingTo === application._id ? 'Accepting...' : 'Accept'}
+                  {respondingTo === application._id ? 'Selecting...' : 'Select for Job'}
                 </Button>
                 
                 <Button
@@ -407,18 +416,10 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
                   Workspace
                 </Button>
                 
-                {!isProjectAwarded && (
-                  <Button
-                    variant="success"
-                    size="small"
-                    onClick={() => handleAwardProject(application._id)}
-                    disabled={awardingProject === application._id}
-                    className="flex items-center gap-2"
-                  >
-                    <CheckIcon className="h-4 w-4" />
-                    {awardingProject === application._id ? 'Awarding...' : 'Select for Job'}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2 text-green-600 font-medium">
+                  <CheckIcon className="h-5 w-5" />
+                  Selected for Job
+                </div>
               </div>
             )}
 

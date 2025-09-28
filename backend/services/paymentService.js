@@ -15,6 +15,10 @@ class PaymentService {
   // Create a payment order for milestone
   static async createMilestonePayment(milestoneId, clientId) {
     try {
+      console.log('🔍 PaymentService: Starting createMilestonePayment');
+      console.log('🔍 PaymentService: milestoneId:', milestoneId);
+      console.log('🔍 PaymentService: clientId:', clientId);
+      
       const milestone = await Milestone.findById(milestoneId)
         .populate('workspace')
         .populate({
@@ -24,28 +28,43 @@ class PaymentService {
             select: 'fullName email'
           }
         });
+        
+      console.log('🔍 PaymentService: Found milestone:', milestone ? 'YES' : 'NO');
 
       if (!milestone) {
+        console.log('❌ PaymentService: Milestone not found');
         throw new Error('Milestone not found');
       }
+      
+      console.log('🔍 PaymentService: Milestone workspace:', milestone.workspace ? 'EXISTS' : 'NULL');
+      console.log('🔍 PaymentService: Milestone workspace client:', milestone.workspace?.client?._id);
+      console.log('🔍 PaymentService: Provided clientId:', clientId);
 
       if (milestone.workspace.client._id.toString() !== clientId) {
+        console.log('❌ PaymentService: Client ID mismatch');
         throw new Error('Unauthorized: Only the client can initiate payment');
       }
 
-      if (milestone.status !== 'approved') {
-        throw new Error('Milestone must be approved before payment');
+      // Check if milestone is ready for payment (approved OR payment due date has arrived)
+      const now = new Date();
+      const paymentDueDate = milestone.paymentDueDate ? new Date(milestone.paymentDueDate) : null;
+      const isPaymentDue = paymentDueDate && now >= paymentDueDate;
+      
+      if (milestone.status !== 'approved' && !isPaymentDue) {
+        throw new Error('Milestone must be approved or payment due date must have arrived');
       }
 
       if (milestone.paymentStatus === 'completed') {
         throw new Error('Milestone is already paid');
       }
 
-      // Create Razorpay order
+      // Create Razorpay order with UPI support
       const order = await razorpay.orders.create({
         amount: Math.round(milestone.amount * 100), // Convert to paise
         currency: milestone.currency || 'INR',
         receipt: `milestone_${milestone._id}_${Date.now()}`,
+        // Enable all payment methods
+        method: 'upi,card,netbanking,wallet,emi,paylater',
         notes: {
           milestone_id: milestone._id.toString(),
           workspace_id: milestone.workspace._id.toString(),
@@ -201,13 +220,21 @@ class PaymentService {
   }
 
   // Handle payment failure
-  static async handlePaymentFailure(orderId, reason) {
+  static async handlePaymentFailure(orderId, reason, errorCode = null) {
     try {
       const milestone = await Milestone.findOne({ paymentId: orderId });
       if (milestone) {
         milestone.paymentStatus = 'failed';
         milestone.paymentFailureReason = reason;
+        milestone.paymentFailureCode = errorCode;
         await milestone.save();
+        
+        console.log('❌ Payment failure recorded:', {
+          milestoneId: milestone._id,
+          orderId,
+          reason,
+          errorCode
+        });
       }
     } catch (error) {
       console.error('❌ Error handling payment failure:', error);

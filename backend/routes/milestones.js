@@ -76,8 +76,8 @@ router.get('/:workspaceId/milestones', auth(['client', 'freelancer']), checkWork
   }
 });
 
-// POST /api/workspaces/:workspaceId/milestones - Create milestone (client only)
-router.post('/:workspaceId/milestones', auth(['client']), checkWorkspaceAccess, async (req, res) => {
+// POST /api/workspaces/:workspaceId/milestones - Create milestone (freelancer only)
+router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId } = req.params;
     const { title, description, dueDate, paymentDueDate, amount, currency = 'INR', requirements } = req.body;
@@ -158,8 +158,8 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
     const isFreelancer = req.user.role === 'freelancer';
 
     if (isClient) {
-      // Client can approve/reject milestones and update details
-      const allowedUpdates = ['title', 'description', 'dueDate', 'amount', 'requirements', 'status', 'reviewNotes'];
+      // Client can only approve/reject milestones, add review notes, and mark as paid
+      const allowedUpdates = ['status', 'reviewNotes'];
       
       Object.keys(req.body).forEach(key => {
         if (allowedUpdates.includes(key)) {
@@ -177,9 +177,23 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
         milestone.paymentStatus = 'completed';
       }
     } else if (isFreelancer) {
-      // Freelancer can mark as in-progress or completed, add notes, update requirements
-      const allowedUpdates = ['status', 'progressNotes', 'submissionNotes'];
+      // Check if milestone is approved or paid (freelancer cannot edit these)
+      if (milestone.status === 'approved' || milestone.status === 'paid' || milestone.status === 'payment-overdue') {
+        return res.status(403).json({
+          success: false,
+          message: 'Cannot edit milestone after it has been approved by the client'
+        });
+      }
+
+      // Freelancer can update milestone details when not approved, plus status, notes, requirements
+      const allowedUpdates = ['title', 'description', 'dueDate', 'amount', 'requirements', 'status', 'progressNotes', 'submissionNotes'];
       
+      Object.keys(req.body).forEach(key => {
+        if (allowedUpdates.includes(key)) {
+          milestone[key] = req.body[key];
+        }
+      });
+
       if (status === 'in-progress' || status === 'review') {
         milestone.status = status;
         if (status === 'review') {
@@ -356,8 +370,8 @@ router.put('/:workspaceId/milestones/:milestoneId/attachments',
   }
 );
 
-// GET /api/milestones/templates - Get available milestone templates
-router.get('/templates', auth(['client']), async (req, res) => {
+// GET /api/milestones/templates - Get available milestone templates (freelancer only)
+router.get('/templates', auth(['freelancer']), async (req, res) => {
   try {
     console.log('🔥 GET MILESTONE TEMPLATES');
 
@@ -382,8 +396,8 @@ router.get('/templates', auth(['client']), async (req, res) => {
   }
 });
 
-// GET /api/milestones/templates/:templateId - Get specific template details
-router.get('/templates/:templateId', auth(['client']), async (req, res) => {
+// GET /api/milestones/templates/:templateId - Get specific template details (freelancer only)
+router.get('/templates/:templateId', auth(['freelancer']), async (req, res) => {
   try {
     const { templateId } = req.params;
     console.log('🔥 GET TEMPLATE DETAILS - Template:', templateId);
@@ -410,8 +424,8 @@ router.get('/templates/:templateId', auth(['client']), async (req, res) => {
   }
 });
 
-// POST /api/workspaces/:workspaceId/milestones/bulk - Create multiple milestones from template
-router.post('/:workspaceId/milestones/bulk', auth(['client']), checkWorkspaceAccess, async (req, res) => {
+// POST /api/workspaces/:workspaceId/milestones/bulk - Create multiple milestones from template (freelancer only)
+router.post('/:workspaceId/milestones/bulk', auth(['freelancer']), checkWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId } = req.params;
     const { milestones } = req.body;

@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import ChatInterface from './ChatInterface';
 import FileViewer from './FileViewerNew';
 import VideoCall from './VideoCall';
+import { PaymentModal } from './PaymentModal';
 import { 
   ChatBubbleLeftRightIcon, 
   FolderIcon, 
@@ -19,9 +20,11 @@ import {
 
 
 const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
-  console.log('🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
+  console.log('� WorkspaceInterfaceFixed: Component starting to render');
+  console.log('�🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
 
   const { user } = useAuth();
+  console.log('🔍 WorkspaceInterface: Got user from useAuth:', user);
   const { isUserOnline, socket } = useSocket();
   console.log('🔍 WorkspaceInterface: User from AuthContext:', user);
   const [workspace, setWorkspace] = useState(null);
@@ -44,6 +47,10 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const [skipNextMilestoneFetch, setSkipNextMilestoneFetch] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showFileViewer, setShowFileViewer] = useState(false);
+
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedMilestone, setSelectedMilestone] = useState(null);
 
   // Video call state
   const [showVideoCall, setShowVideoCall] = useState(false);
@@ -198,7 +205,9 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
         const data = await response.json();
         console.log('🔍 Milestones data received:', data);
         console.log('🔍 Milestones array:', data.data || data.milestones || []);
-        setMilestones(data.data || data.milestones || []);
+        const milestonesArray = data.data || data.milestones || [];
+        setMilestones(milestonesArray);
+        console.log('🔍 Milestones state updated with', milestonesArray.length, 'milestones');
       } else {
         console.error('❌ Failed to fetch milestones:', response.status);
       }
@@ -355,6 +364,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 
   const updateMilestone = async (milestoneId, milestoneData) => {
     try {
+      console.log('🔄 Updating milestone:', milestoneId, 'with data:', milestoneData);
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones/${milestoneId}`, {
         method: 'PUT',
@@ -365,19 +375,46 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
         body: JSON.stringify(milestoneData)
       });
 
+      console.log('🔄 Update response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Milestone update successful:', data);
         toast.success('Milestone updated successfully!');
+        
+        // Force refresh milestones (bypass skip mechanism)
+        console.log('🔄 Refreshing milestones...');
+        setSkipNextMilestoneFetch(false); // Ensure we don't skip the fetch
         await fetchMilestones(workspace._id);
         setEditingMilestone(null);
       } else {
         const errorData = await response.json();
+        console.error('❌ Update failed:', errorData);
         toast.error(errorData.message || 'Failed to update milestone');
       }
     } catch (error) {
       console.error('❌ Error updating milestone:', error);
       toast.error('Failed to update milestone: ' + error.message);
     }
+  };
+
+  const handlePaymentClick = (milestone) => {
+    setSelectedMilestone(milestone);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPaymentModal(false);
+    setSelectedMilestone(null);
+    
+    // Refresh milestones and payments to show updated status
+    if (workspace?._id) {
+      await Promise.all([
+        fetchMilestones(workspace._id),
+        fetchPayments(workspace._id)
+      ]);
+    }
+    
+    toast.success('Payment completed successfully!');
   };
 
   const handleMilestoneApproval = async () => {
@@ -672,9 +709,13 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   }
 
   console.log('🔍 WorkspaceInterface: Rendering full workspace interface');
+  console.log('🔍 WorkspaceInterface: Workspace data:', workspace);
+  console.log('🔍 WorkspaceInterface: User data:', user);
 
   const isFreelancer = user?.userType === 'freelancer' || getId(user) === getId(workspace.freelancer);
   const isClient = user?.userType === 'client' || getId(user) === getId(workspace.client);
+  
+  console.log('🔍 WorkspaceInterface: isFreelancer:', isFreelancer, 'isClient:', isClient);
 
   const tabs = [
     { id: 'chat', name: 'Chat', icon: ChatBubbleLeftRightIcon },
@@ -692,10 +733,10 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Project Workspace</h2>
             <p className="text-gray-600">
-              Status: <span className="capitalize font-medium">{workspace.status}</span>
+              Status: <span className="capitalize font-medium">{workspace?.status || 'Unknown'}</span>
             </p>
             <p className="text-sm text-gray-500">
-              Project: {workspace.project?.title}
+              Project: {workspace?.project?.title || 'Unknown Project'}
             </p>
             
             {/* Online Status Indicator */}
@@ -901,8 +942,23 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 
           {activeTab === 'milestones' && (
             <div className="h-full p-6 overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold">Project Milestones</h3>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold">Project Milestones</h3>
+                  {isFreelancer && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Create milestones with deliverables and payment schedule for client approval
+                    </p>
+                  )}
+                  {isClient && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      <p>Review and approve milestones created by the freelancer</p>
+                      <p className="text-xs mt-1 text-blue-600">
+                        💡 You'll pay for each milestone after the freelancer delivers and you approve it
+                      </p>
+                    </div>
+                  )}
+                </div>
                 {isFreelancer && (
                   <button
                     onClick={() => setShowMilestoneForm(true)}
@@ -921,19 +977,37 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                         <div className="flex-1">
                           <h4 className="font-semibold text-lg">{milestone.title}</h4>
                           <p className="text-gray-600 text-sm mt-1">{milestone.description}</p>
-                          <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                            <span>Amount: ₹{milestone.amount}</span>
-                            <span>Due: {new Date(milestone.dueDate).toLocaleDateString()}</span>
+                          <div className="flex flex-col space-y-1 mt-3 text-sm text-gray-500">
+                            <div className="flex items-center space-x-4">
+                              <span className="font-medium">Amount: ₹{milestone.amount}</span>
+                              <span>Delivery Due: {new Date(milestone.dueDate).toLocaleDateString()}</span>
+                            </div>
+                            {milestone.paymentDueDate && (
+                              <div className="flex items-center space-x-4">
+                                <span className={`${isClient ? 'font-medium text-blue-600' : ''}`}>
+                                  Payment Due: {new Date(milestone.paymentDueDate).toLocaleDateString()}
+                                  {isClient && milestone.status === 'approved' && ' (Your responsibility)'}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-3">
-                          {isFreelancer && milestone.status !== 'completed' && (
+                          {isFreelancer && milestone.status !== 'approved' && milestone.status !== 'paid' && milestone.status !== 'payment-overdue' && (
                             <button
-                              onClick={() => setEditingMilestone(milestone)}
+                              onClick={() => {
+                                console.log('✏️ Edit button clicked for milestone:', milestone);
+                                setEditingMilestone(milestone);
+                              }}
                               className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded hover:bg-blue-50"
                             >
                               Edit
                             </button>
+                          )}
+                          {isFreelancer && (milestone.status === 'approved' || milestone.status === 'paid' || milestone.status === 'payment-overdue') && (
+                            <span className="px-3 py-1 text-sm text-gray-500 border border-gray-300 rounded bg-gray-50" title="Cannot edit approved milestones">
+                              Locked
+                            </span>
                           )}
                           {/* Milestone approval buttons for clients */}
                           {isClient && (milestone.status === 'review' || milestone.status === 'completed' || milestone.status === 'pending') && milestone.status !== 'approved' && milestone.status !== 'rejected' && (
@@ -958,9 +1032,20 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             milestone.status === 'rejected' ? 'bg-red-100 text-red-800' :
                             milestone.status === 'review' ? 'bg-orange-100 text-orange-800' :
                             milestone.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            milestone.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            milestone.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {milestone.status === 'review' ? 'Under Review' : milestone.status || 'Draft'}
+                            {
+                              milestone.status === 'pending' ? 'Awaiting Client Approval' :
+                              milestone.status === 'approved' ? 'Approved - Ready to Start' :
+                              milestone.status === 'in-progress' ? 'In Progress' :
+                              milestone.status === 'review' ? 'Under Client Review' :
+                              milestone.status === 'completed' ? 'Completed' :
+                              milestone.status === 'rejected' ? 'Needs Revision' :
+                              milestone.status === 'paid' ? 'Paid' :
+                              milestone.status || 'Draft'
+                            }
                           </span>
                         </div>
                       </div>
@@ -1067,36 +1152,101 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
             <div className="h-full p-6 overflow-y-auto">
               <h3 className="text-lg font-semibold mb-6">Payment Management</h3>
               
-              {milestones.filter(m => m.status === 'approved').length > 0 ? (
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-700">Approved Milestones Ready for Payment</h4>
-                  {milestones.filter(m => m.status === 'approved').map((milestone, index) => (
-                    <div key={index} className="border border-green-200 rounded-lg p-4 bg-green-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h5 className="font-semibold">{milestone.title}</h5>
-                          <p className="text-gray-600 text-sm mt-1">{milestone.description}</p>
-                          <p className="text-green-600 text-sm mt-2">
-                            <strong>Amount Due:</strong> ₹{milestone.amount}
-                          </p>
-                        </div>
-                        <button
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                          disabled
-                        >
-                          Pay Now
-                        </button>
+              {(() => {
+                const now = new Date();
+                const payableMilestones = milestones.filter(m => {
+                  // Exclude already paid milestones
+                  if (m.paymentStatus === 'completed' || m.status === 'paid') return false;
+                  
+                  if (m.status === 'approved') return true;
+                  if (m.paymentDueDate) {
+                    const dueDate = new Date(m.paymentDueDate);
+                    return now >= dueDate;
+                  }
+                  return false;
+                });
+                
+                const paidMilestones = milestones.filter(m => 
+                  m.paymentStatus === 'completed' || m.status === 'paid'
+                );
+                return (
+                  <div>
+                    {payableMilestones.length > 0 && (
+                      <div className="space-y-4 mb-8">
+                        <h4 className="font-medium text-gray-700">Milestones Ready for Payment</h4>
+                        {payableMilestones.map((milestone, index) => (
+                          <div key={index} className="border border-green-200 rounded-lg p-4 bg-green-50">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-semibold">{milestone.title}</h5>
+                                <p className="text-gray-600 text-sm mt-1">{milestone.description}</p>
+                                <p className="text-green-600 text-sm mt-2">
+                                  <strong>Amount Due:</strong> ₹{milestone.amount}
+                                </p>
+                                {milestone.paymentDueDate && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    Payment Due: {new Date(milestone.paymentDueDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                                <p className="text-xs mt-1">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    milestone.status === 'approved' 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {milestone.status === 'approved' ? 'Approved' : 'Payment Due'}
+                                  </span>
+                                </p>
+                              </div>
+                              <button
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                onClick={() => handlePaymentClick(milestone)}
+                              >
+                                Pay Now
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-12">
-                  <CreditCardIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">No Payments Due</h3>
-                  <p>Approved milestones ready for payment will appear here.</p>
-                </div>
-              )}
+                    )}
+                    
+                    {paidMilestones.length > 0 && (
+                      <div className="space-y-4 mb-8">
+                        <h4 className="font-medium text-gray-700">Completed Payments</h4>
+                        {paidMilestones.map((milestone, index) => (
+                          <div key={`paid-${index}`} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-semibold text-gray-800">{milestone.title}</h5>
+                                <p className="text-gray-600 text-sm mt-1">{milestone.description}</p>
+                                <p className="text-green-600 text-sm mt-2">
+                                  <strong>Amount Paid:</strong> ₹{milestone.amount}
+                                </p>
+                                {milestone.paidDate && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    Paid on: {new Date(milestone.paidDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Paid
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {payableMilestones.length === 0 && paidMilestones.length === 0 && (
+                      <div className="text-center text-gray-500 py-12">
+                        <CreditCardIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                        <h3 className="text-lg font-medium mb-2">No Payments</h3>
+                        <p>Milestones ready for payment will appear here when approved or payment due date arrives.</p>
+                      </div>
+                    )}
+                  </div>
+                );
+          })()}
             </div>
           )}
 
@@ -1116,7 +1266,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                           </p>
                           <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
                             <span>Date: {new Date(payment.paidAt || payment.createdAt).toLocaleDateString()}</span>
-                            <span>Method: {payment.paymentMethod || 'Bank Transfer'}</span>
+                            <span>Method: {payment.paymentMethod || 'Razorpay'}</span>
                           </div>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -1284,6 +1434,19 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           participantInfo={otherParticipant}
         />
       )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedMilestone && (
+        <PaymentModal
+          milestone={selectedMilestone}
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setSelectedMilestone(null);
+          }}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 };
@@ -1298,6 +1461,26 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
     paymentDueDate: milestone?.paymentDueDate ? new Date(milestone.paymentDueDate).toISOString().split('T')[0] : '',
     requirements: milestone?.requirements || []
   });
+
+  // Update form data when milestone prop changes
+  useEffect(() => {
+    if (milestone) {
+      console.log('📝 MilestoneForm: Loading milestone data:', milestone);
+      setFormData({
+        title: milestone.title || '',
+        description: milestone.description || '',
+        amount: milestone.amount || '',
+        dueDate: milestone.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : '',
+        paymentDueDate: milestone.paymentDueDate ? new Date(milestone.paymentDueDate).toISOString().split('T')[0] : '',
+        requirements: milestone.requirements || []
+      });
+      console.log('📝 MilestoneForm: Form data set:', {
+        title: milestone.title || '',
+        description: milestone.description || '',
+        amount: milestone.amount || ''
+      });
+    }
+  }, [milestone]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

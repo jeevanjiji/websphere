@@ -36,6 +36,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSkills, setSelectedSkills] = useState('');
+  const [showAllProjects, setShowAllProjects] = useState(true); // Show all by default
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -90,6 +91,9 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       if (skills.trim()) {
         params.append('skills', skills.trim());
       }
+      if (showAllProjects) {
+        params.append('showAllProjects', 'true');
+      }
 
       const response = await fetch(`http://localhost:5000/api/projects/browse?${params}`, {
         headers: {
@@ -101,9 +105,12 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       const data = await response.json();
 
       if (data.success) {
+        console.log('🎯 Projects fetched:', data.projects?.length || 0);
+        console.log('🔍 Debug info:', data.debug);
         setProjects(data.projects);
         setPagination(data.pagination);
       } else {
+        console.error('❌ Failed to fetch projects:', data.message);
         toast.error(data.message || 'Failed to fetch projects');
       }
     } catch (error) {
@@ -124,6 +131,13 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       fetchChats();
     }
   }, [activeTab]);
+
+  // Refetch projects when showAllProjects changes
+  useEffect(() => {
+    if (activeTab === 'browse') {
+      fetchProjects(1, searchTerm, selectedSkills);
+    }
+  }, [showAllProjects]);
 
   // Fetch freelancer's applications
   const fetchMyApplications = async (page = 1) => {
@@ -236,6 +250,15 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     fetchProjects(newPage, searchTerm, selectedSkills);
   };
 
+  // Handle show all projects toggle
+  const handleShowAllToggle = () => {
+    setShowAllProjects(!showAllProjects);
+    // Refetch projects with new setting
+    setTimeout(() => {
+      fetchProjects(1, searchTerm, selectedSkills);
+    }, 0);
+  };
+
 
 
   // Helper function to format project data for display
@@ -256,29 +279,51 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const renderBrowseProjects = () => (
     <div className="space-y-6">
       {/* Search and Filter Section */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search projects..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-        />
-        <input
-          type="text"
-          placeholder="Filter by skills (e.g., React, Node.js)"
-          value={selectedSkills}
-          onChange={(e) => setSelectedSkills(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-        />
-        <button
-          onClick={handleSearch}
-          className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          Search
-        </button>
+      <div className="space-y-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+          <input
+            type="text"
+            placeholder="Filter by skills (e.g., React, Node.js)"
+            value={selectedSkills}
+            onChange={(e) => setSelectedSkills(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+          <button
+            onClick={handleSearch}
+            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Search
+          </button>
+        </div>
+        
+        {/* Filter Options */}
+        <div className="flex items-center gap-4 text-sm">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAllProjects}
+              onChange={handleShowAllToggle}
+              className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
+            />
+            <span className="text-gray-700">
+              Show all projects (otherwise only projects matching your skills)
+            </span>
+          </label>
+          <div className="text-gray-500">
+            {pagination.totalProjects > 0 && (
+              <span>{pagination.totalProjects} projects found</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Loading State */}
