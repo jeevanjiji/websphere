@@ -108,7 +108,9 @@ const ClientTour = ({ runTour, onTourEnd }) => {
       callback={handleJoyrideCallback}
       continuous={true}
       run={runJoyride}
-      scrollToFirstStep={true}
+      scrollToFirstStep={false}
+      scrollToSteps={false}
+      disableScrolling={true}
       showProgress={true}
       showSkipButton={true}
       steps={steps}

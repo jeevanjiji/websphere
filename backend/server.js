@@ -395,9 +395,10 @@ app.use('*', (req, res) => {
    Socket.IO Real-Time Features
 ────────────────────────────────────────── */
 
-// Store online users
+// Store online users and active calls
 const onlineUsers = new Map();
 const typingUsers = new Map();
+const activeCalls = new Map(); // callId -> { caller: userId, callee: userId, workspaceId, startTime }
 
 io.on('connection', (socket) => {
   console.log('👤 User connected:', socket.id);
@@ -580,6 +581,17 @@ io.on('connection', (socket) => {
   socket.on('video-call-response', (responseData) => {
     console.log('📹 Video call response:', responseData);
     
+    // If call was accepted, track it
+    if (responseData.accepted) {
+      activeCalls.set(responseData.callId, {
+        caller: responseData.callerId,
+        callee: responseData.responder.id,
+        workspaceId: responseData.workspaceId,
+        startTime: new Date()
+      });
+      console.log('📹 Active call tracked:', responseData.callId);
+    }
+    
     // Find the caller's socket
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userId === responseData.callerId) {
@@ -636,6 +648,12 @@ io.on('connection', (socket) => {
   socket.on('video-call-ended', (data) => {
     console.log('📹 Video call ended:', data.callId, 'Target user:', data.targetUserId);
     
+    // Remove call from active calls
+    if (activeCalls.has(data.callId)) {
+      activeCalls.delete(data.callId);
+      console.log('📹 Removed call from active calls:', data.callId);
+    }
+    
     // Notify other participant that call has ended
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userId === data.targetUserId) {
@@ -668,6 +686,31 @@ io.on('connection', (socket) => {
     }
     
     if (removedUserId) {
+      // Check for active calls involving this user and end them
+      for (const [callId, callData] of activeCalls.entries()) {
+        if (callData.caller === removedUserId || callData.callee === removedUserId) {
+          const otherUserId = callData.caller === removedUserId ? callData.callee : callData.caller;
+          console.log(`📹 User ${removedUserId} disconnected during active call ${callId}, notifying user ${otherUserId}`);
+          
+          // Find the other user's socket and notify them
+          for (const [userId, userData] of onlineUsers.entries()) {
+            if (userId === otherUserId) {
+              io.to(userData.socketId).emit('call-ended', {
+                callId: callId,
+                endedBy: 'disconnect',
+                workspaceId: callData.workspaceId,
+                reason: 'other_participant_disconnected'
+              });
+              break;
+            }
+          }
+          
+          // Remove the call from active calls
+          activeCalls.delete(callId);
+          console.log(`📹 Removed call ${callId} due to user disconnect`);
+        }
+      }
+      
       // Send updated online users list to all remaining clients
       const onlineUsersList = Array.from(onlineUsers.keys());
       console.log(`📊 Broadcasting updated online users after disconnect: [${onlineUsersList.join(', ')}]`);

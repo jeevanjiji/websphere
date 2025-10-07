@@ -53,7 +53,7 @@ const DebugPanel = () => {
   }, []);
 
   const refreshAuth = async () => {
-    toast.info('Refreshing authentication...');
+  toast('Refreshing authentication...', { icon: '🔄' });
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.reload();

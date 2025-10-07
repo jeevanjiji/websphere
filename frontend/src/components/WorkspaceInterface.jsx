@@ -306,21 +306,60 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-6xl h-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-7xl h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Project Workspace</h2>
-            <p className="text-gray-600">
-              Status: <span className="capitalize font-medium">{workspace.status}</span>
-            </p>
+        <div className="flex items-center justify-between p-3 border-b">
+          <h2 className="text-xl font-semibold text-gray-800">Project Workspace</h2>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">Status: <span className="capitalize font-medium">{workspace.status}</span></span>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+              aria-label="Close workspace"
+            >
+              ×
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold"
-          >
-            ×
-          </button>
+        </div>
+
+        {/* Compact Info Bar */}
+        <div className="px-3 py-2 border-b bg-gray-50">
+          <div className="flex items-center justify-between text-sm text-gray-700">
+            {/* Show relevant person based on user role */}
+            {isWorkspaceClient ? (
+              /* Client sees Freelancer info */
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Freelancer:</span>
+                <span>{workspace.freelancer?.fullName || '—'}</span>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${
+                    workspace.freelancer ? 'bg-green-500' : 'bg-gray-400'
+                  }`}></div>
+                  <span className="text-xs text-gray-500">
+                    {workspace.freelancer ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Freelancer sees Client info */
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Client:</span>
+                <span>{workspace.client?.fullName || '—'}</span>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${
+                    workspace.client ? 'bg-green-500' : 'bg-gray-400'
+                  }`}></div>
+                  <span className="text-xs text-gray-500">
+                    {workspace.client ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            )}
+            {/* Project title (truncated) */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="truncate max-w-xs">{workspace.project?.title || 'Project'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -337,7 +376,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-6 py-3 font-medium ${
+                className={`flex items-center px-4 py-2 font-medium ${
                   activeTab === tab.id
                     ? 'border-b-2 border-blue-500 text-blue-600'
                     : 'text-gray-600 hover:text-gray-800'
@@ -446,17 +485,18 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
 
   return (
     <div className="h-full flex flex-col">
+
       {/* Upload Area */}
       <div
-        className={`m-4 p-8 border-2 border-dashed rounded-lg text-center ${
+        className={`m-3 p-6 border-2 border-dashed rounded-lg text-center ${
           dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <div className="text-4xl mb-4">📎</div>
-        <p className="text-gray-600 mb-4">
+        <div className="text-4xl mb-2">📎</div>
+        <p className="text-gray-600 mb-3">
           Drag and drop files here, or click to select files
         </p>
         <input
@@ -465,6 +505,7 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload"
+          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,.zip,.rar,.mp4,.mov,.avi,.xls,.xlsx,.ppt,.pptx,.csv"
         />
         <label
           htmlFor="file-upload"
@@ -472,10 +513,13 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
         >
           Select Files
         </label>
+        <p className="text-xs text-gray-500 mt-2">
+          Remember: Max 10MB per file, up to 5 files per upload
+        </p>
       </div>
 
       {/* Files List */}
-      <div className="flex-1 overflow-y-auto p-4">
+  <div className="flex-1 overflow-y-auto p-3">
         <div className="grid grid-cols-1 gap-4">
           {files.map(file => (
             <div key={file._id} className="border rounded-lg p-4 hover:shadow-md">
@@ -515,7 +559,12 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
 
         {files.length === 0 && (
           <div className="text-center text-gray-500 py-8">
-            No files uploaded yet
+            <div className="text-4xl mb-4">📁</div>
+            <h3 className="text-lg font-medium mb-2">No Files Shared</h3>
+            <p className="text-sm">Files shared in this workspace will appear here.</p>
+            <p className="mt-4 text-xs text-gray-500 max-w-3xl mx-auto">
+              Supported: JPEG, JPG, PNG, GIF, WebP, PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, PPT, PPTX, ZIP, RAR, MP4, MOV, AVI • Max 10MB per file • Up to 5 files per upload
+            </p>
           </div>
         )}
       </div>
@@ -1002,6 +1051,33 @@ const DeliverablesTab = ({ deliverables, workspace, milestones, user, onRefresh 
         )}
       </div>
 
+      {/* Deliverable Types Info for Freelancers */}
+      {isFreelancer && (
+        <div className="p-3 bg-blue-50 border-b">
+          <div className="text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-semibold text-blue-800 mb-2">📦 Deliverable Types Supported:</h4>
+                <ul className="text-gray-700 space-y-1 text-xs">
+                  <li>• <strong>Compressed folders</strong> (.zip, .rar)</li>
+                  <li>• <strong>Links</strong> (staging URL, Figma, GitHub, etc.)</li>
+                  <li>• <strong>Documents</strong> (PDFs, docs, screenshots, mockups)</li>
+                  <li>• <strong>Videos</strong> (demos, walkthroughs)</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-orange-800 mb-2">📏 File Requirements:</h4>
+                <ul className="text-gray-700 space-y-1 text-xs">
+                  <li>• <strong>Max file size:</strong> 10MB per file</li>
+                  <li>• <strong>Max files per upload:</strong> 5 files</li>
+                  <li>• <strong>Supported formats:</strong> JPEG, PNG, PDF, DOC, DOCX, ZIP, RAR, MP4, MOV, AVI</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Submit Form */}
       {showSubmitForm && (
         <div className="p-4 border-b bg-gray-50">
@@ -1200,8 +1276,10 @@ const DeliverablesTab = ({ deliverables, workspace, milestones, user, onRefresh 
         </div>
 
         {deliverables.length === 0 && (
-          <div className="text-center text-gray-500 py-8">
-            No deliverables submitted yet
+          <div className="text-center text-gray-500 py-12">
+            <div className="text-4xl mb-4">📦</div>
+            <h3 className="text-lg font-medium mb-2">No Deliverables Submitted</h3>
+            <p className="text-sm">Deliverables and work submissions will appear here.</p>
           </div>
         )}
       </div>

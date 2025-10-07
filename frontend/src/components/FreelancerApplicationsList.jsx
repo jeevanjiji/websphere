@@ -106,7 +106,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
     if (application.status === 'accepted' && onOpenChat) {
       onOpenChat(application);
     } else {
-      toast.info('Chat is only available for accepted applications');
+  toast('Chat is only available for accepted applications', { icon: '💬' });
     }
   };
 

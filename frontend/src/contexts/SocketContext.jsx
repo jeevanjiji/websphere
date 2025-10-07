@@ -163,7 +163,8 @@ export const SocketProvider = ({ children }) => {
 
       newSocket.on('call-ended', (data) => {
         console.log('📹 Call ended:', data);
-        toast.info(`Video call ended by ${data.endedBy?.fullName || 'other participant'}`);
+        const who = typeof data?.endedBy === 'string' ? data.endedBy : (data?.endedBy?.fullName || 'other participant');
+        toast(`Video call ended by ${who}`, { icon: '📹' });
         window.dispatchEvent(new CustomEvent('call-ended', { detail: data }));
       });
 

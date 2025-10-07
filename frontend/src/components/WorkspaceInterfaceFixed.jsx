@@ -55,6 +55,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   // Video call state
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState(null);
+  const [currentCallId, setCurrentCallId] = useState(null);
   // New: incoming call popup state
   const [incomingCall, setIncomingCall] = useState(null); // { callId, fromUser, workspaceId, projectTitle }
   
@@ -102,28 +103,48 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     if (!socket) return;
 
     const handleCallResponse = (data) => {
+      console.log('📹 Received call response:', data);
+      
       if (data.accepted) {
         toast.success(`${data.responder?.fullName || 'Participant'} accepted the call!`);
-        setShowVideoCall(true);
+        setCurrentCallId(data.callId);
         setCallAccepted(true);
-        setOtherParticipant(prev => ({
-          ...prev,
-          isCurrentUserCaller: true
-        }));
+        
+        // Update otherParticipant to include responder info and maintain caller flag
+        setOtherParticipant(prev => {
+          console.log('📹 Updating otherParticipant. Previous:', prev, 'Responder:', data.responder);
+          
+          // Merge existing participant data with responder data
+          const updated = {
+            ...(prev || {}),
+            ...(data.responder || {}),
+            isCurrentUserCaller: true, // Caller is receiving acceptance
+            // Ensure we have an ID
+            _id: prev?._id || data.responder?._id || data.responder?.id,
+            id: prev?.id || data.responder?.id || data.responder?._id
+          };
+          
+          console.log('📹 Updated otherParticipant:', updated);
+          return updated;
+        });
+        
+        setShowVideoCall(true);
       } else {
         toast.error(`${data.responder?.fullName || 'Participant'} declined the call.`);
         setShowVideoCall(false);
         setOtherParticipant(null);
         setCallAccepted(false);
+        setCurrentCallId(null);
       }
     };
 
     const handleCallEnded = () => {
-      toast.info('Call ended');
+      toast('Call ended', { icon: '📹' });
       setShowVideoCall(false);
       setOtherParticipant(null);
       setCallAccepted(false);
       setIncomingCall(null);
+      setCurrentCallId(null);
     };
 
     socket.on('call-response-received', handleCallResponse);
@@ -592,10 +613,12 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       toast.warning(`${participant.fullName} is currently offline. They will receive a notification about the call.`);
     }
     // For caller: store participant info and mark that current user is caller
-    setOtherParticipant({
+    const participantWithFlag = {
       ...participant,
       isCurrentUserCaller: true // Current user is initiating the call
-    });
+    };
+    console.log('📹 Setting otherParticipant for caller:', participantWithFlag);
+    setOtherParticipant(participantWithFlag);
     setCallAccepted(false);
     setShowVideoCall(false); // Wait for acceptance
     // Emit video call initiation through socket
@@ -615,11 +638,13 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const handleAcceptCall = () => {
     if (socket && incomingCall) {
       console.log('📹 Accepting call from:', incomingCall.fromUser.fullName);
+      setCurrentCallId(incomingCall.callId);
       socket.emit('video-call-response', {
         callId: incomingCall.callId,
         accepted: true,
         responder: user,
-        callerId: getId(incomingCall.fromUser)
+        callerId: getId(incomingCall.fromUser),
+        workspaceId: incomingCall.workspaceId
       });
       setCallAccepted(true);
       setShowVideoCall(true);
@@ -648,8 +673,10 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   };
 
   const closeVideoCall = () => {
+    console.log('📹 Closing video call');
     setShowVideoCall(false);
     setOtherParticipant(null);
+    setCurrentCallId(null);
   };
 
   const handleFileDownload = (file) => {
@@ -727,80 +754,69 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-6xl h-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-7xl h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Project Workspace</h2>
-            <p className="text-gray-600">
-              Status: <span className="capitalize font-medium">{workspace?.status || 'Unknown'}</span>
-            </p>
-            <p className="text-sm text-gray-500">
-              Project: {workspace?.project?.title || 'Unknown Project'}
-            </p>
-            
-            {/* Online Status Indicator */}
-            {workspace.client && workspace.freelancer && (
-              <div className="flex items-center space-x-6 mt-3">
-                {/* Client Status */}
-                {getId(user) !== getId(workspace.client) && (
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        isUserOnline(getId(workspace.client)) ? 'bg-green-500' : 'bg-gray-400'
-                      }`}></div>
-                      <span className="text-sm text-gray-600">
-                        {workspace.client.fullName} 
-                        <span className={`ml-1 ${
-                          isUserOnline(getId(workspace.client)) ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          ({isUserOnline(getId(workspace.client)) ? 'Online' : 'Offline'})
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Freelancer Status */}
-                {getId(user) !== getId(workspace.freelancer) && (
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        isUserOnline(getId(workspace.freelancer)) ? 'bg-green-500' : 'bg-gray-400'
-                      }`}></div>
-                      <span className="text-sm text-gray-600">
-                        {workspace.freelancer.fullName}
-                        <span className={`ml-1 ${
-                          isUserOnline(getId(workspace.freelancer)) ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                          ({isUserOnline(getId(workspace.freelancer)) ? 'Online' : 'Offline'})
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center space-x-3">
-            {/* Video Call Button - Show only when workspace is active */}
+        <div className="flex items-center justify-between p-3 border-b">
+          <h2 className="text-xl font-semibold text-gray-800">Project Workspace</h2>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">Status: <span className="capitalize font-medium">{workspace?.status || 'Unknown'}</span></span>
             {workspace.status === 'active' && (
               <button
                 onClick={handleStartVideoCall}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                title="Start video call with project participant"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                title="Start video call"
               >
-                <VideoCameraIcon className="w-5 h-5" />
+                <VideoCameraIcon className="w-4 h-4" />
                 <span>Video Call</span>
               </button>
             )}
-            
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+              className="text-gray-400 hover:text-gray-600 text-lg font-bold"
+              aria-label="Close workspace"
             >
               ×
             </button>
+          </div>
+        </div>
+
+        {/* Compact Info Bar */}
+        <div className="px-3 py-2 border-b bg-gray-50">
+          <div className="flex items-center justify-between text-sm text-gray-700">
+            {/* Show relevant person based on user role */}
+            {isClient ? (
+              /* Client sees Freelancer info */
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Freelancer:</span>
+                <span>{workspace.freelancer?.fullName || '—'}</span>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${
+                    isUserOnline(getId(workspace.freelancer)) ? 'bg-green-500' : 'bg-gray-400'
+                  }`}></div>
+                  <span className="text-xs text-gray-500">
+                    {isUserOnline(getId(workspace.freelancer)) ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Freelancer sees Client info */
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Client:</span>
+                <span>{workspace.client?.fullName || '—'}</span>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${
+                    isUserOnline(getId(workspace.client)) ? 'bg-green-500' : 'bg-gray-400'
+                  }`}></div>
+                  <span className="text-xs text-gray-500">
+                    {isUserOnline(getId(workspace.client)) ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            )}
+            {/* Project title (truncated) */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="truncate max-w-xs">{workspace.project?.title || 'Project'}</span>
+            </div>
           </div>
         </div>
 
@@ -812,7 +828,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-6 py-3 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600 bg-blue-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -905,6 +921,9 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                     <FolderIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                     <h3 className="text-lg font-medium mb-2">No Files Shared</h3>
                     <p>Files shared in this workspace will appear here.</p>
+                    <p className="mt-4 text-xs text-gray-500 max-w-3xl mx-auto">
+                      Supported: JPEG, JPG, PNG, GIF, WebP, PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, PPT, PPTX, ZIP, RAR, MP4, MOV, AVI • Max 10MB per file • Up to 5 files per upload
+                    </p>
                   </div>
                 )}
               </div>
@@ -1066,8 +1085,8 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           )}
 
           {activeTab === 'deliverables' && (
-            <div className="h-full p-6 overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
+            <div className="h-full overflow-y-auto">
+              <div className="flex justify-between items-center p-4 border-b">
                 <h3 className="text-lg font-semibold">Project Deliverables</h3>
                 {isFreelancer && (
                   <button
@@ -1079,8 +1098,36 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   </button>
                 )}
               </div>
-              
-              {deliverables.length > 0 ? (
+
+              {/* Deliverable Types Info for Freelancers */}
+              {isFreelancer && (
+                <div className="p-3 bg-blue-50 border-b">
+                  <div className="text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-semibold text-blue-800 mb-2">📦 Deliverable Types Supported:</h4>
+                        <ul className="text-gray-700 space-y-1 text-xs">
+                          <li>• <strong>Compressed folders</strong> (.zip, .rar)</li>
+                          <li>• <strong>Links</strong> (staging URL, Figma, GitHub, etc.)</li>
+                          <li>• <strong>Documents</strong> (PDFs, docs, screenshots, mockups)</li>
+                          <li>• <strong>Videos</strong> (demos, walkthroughs)</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-orange-800 mb-2">📏 File Requirements:</h4>
+                        <ul className="text-gray-700 space-y-1 text-xs">
+                          <li>• <strong>Max file size:</strong> 10MB per file</li>
+                          <li>• <strong>Max files per upload:</strong> 5 files</li>
+                          <li>• <strong>Supported formats:</strong> JPEG, PNG, PDF, DOC, DOCX, ZIP, RAR, MP4, MOV, AVI</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-6">
+                {deliverables.length > 0 ? (
                 <div className="space-y-4">
                   {deliverables.map((deliverable, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4">
@@ -1140,11 +1187,9 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   <ArchiveBoxIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                   <h3 className="text-lg font-medium mb-2">No Deliverables Yet</h3>
                   <p>Project deliverables will be submitted and reviewed here.</p>
-                  {isFreelancer && (
-                    <p className="text-sm text-blue-600 mt-2">As a freelancer, you can submit deliverables</p>
-                  )}
                 </div>
               )}
+              </div>
             </div>
           )}
 
@@ -1302,17 +1347,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           )}
         </div>
 
-        {/* Debug Info */}
-        <div className="border-t bg-gray-50 p-4">
-          <div className="text-xs text-gray-600 space-y-1">
-            <p><strong>User Role:</strong> {isFreelancer ? 'Freelancer' : isClient ? 'Client' : 'Unknown'}</p>
-            <p><strong>Workspace ID:</strong> {workspace._id}</p>
-            <p><strong>Project:</strong> {workspace.project?.title} (Budget: ₹{workspace.project?.budgetAmount})</p>
-            <p><strong>Client:</strong> {workspace.client?.fullName}</p>
-            <p><strong>Freelancer:</strong> {workspace.freelancer?.fullName}</p>
-            <p><strong>Data Loaded:</strong> {files.length} files, {milestones.length} milestones, {deliverables.length} deliverables</p>
-          </div>
-        </div>
+
       </div>
 
       {/* Milestone Approval Modal */}
@@ -1426,13 +1461,31 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
         </div>
       )}
       {/* Video Call Modal */}
-      {showVideoCall && (
+      {showVideoCall && workspace?._id && otherParticipant && (
         <VideoCall
           isOpen={showVideoCall}
           onClose={closeVideoCall}
-          workspaceId={workspace?._id}
+          workspaceId={workspace._id}
           participantInfo={otherParticipant}
+          callId={currentCallId}
         />
+      )}
+      {/* Show error if video call state is invalid */}
+      {showVideoCall && (!workspace?._id || !otherParticipant) && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-lg p-8 max-w-md text-center">
+            <h3 className="text-xl font-bold text-white mb-4">Call Setup Error</h3>
+            <p className="text-gray-300 mb-6">
+              Unable to start video call. Missing required information.
+            </p>
+            <button
+              onClick={closeVideoCall}
+              className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Payment Modal */}

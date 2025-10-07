@@ -1,5 +1,10 @@
 const express = require('express');
 const User = require('../models/User');
+const Project = require('../models/Project');
+const Application = require('../models/Application');
+const Workspace = require('../models/Workspace');
+const Milestone = require('../models/Milestone');
+const { Chat } = require('../models/Chat');
 const authenticate = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -33,17 +38,111 @@ router.get('/users', authenticate, isAdmin, async (req, res) => {
 
 router.get('/dashboard-stats', authenticate, isAdmin, async (req, res) => {
   try {
+    // User Statistics
     const totalUsers = await User.countDocuments({ isDeleted: false });
     const clientsCount = await User.countDocuments({ role: 'client', isDeleted: false });
     const freelancersCount = await User.countDocuments({ role: 'freelancer', isDeleted: false });
     const activeUsers = await User.countDocuments({ isActive: true, isDeleted: false });
     const deletedUsers = await User.countDocuments({ isDeleted: true });
+    
+    // Registration trends (last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentRegistrations = await User.countDocuments({ 
+      createdAt: { $gte: thirtyDaysAgo },
+      isDeleted: false 
+    });
+
+    // Project Statistics
+    const totalProjects = await Project.countDocuments();
+    const openProjects = await Project.countDocuments({ status: 'open' });
+    const awardedProjects = await Project.countDocuments({ status: 'awarded' });
+    const completedProjects = await Project.countDocuments({ status: 'completed' });
+    
+    // Application Statistics
+    const totalApplications = await Application.countDocuments();
+    const pendingApplications = await Application.countDocuments({ status: 'pending' });
+    const acceptedApplications = await Application.countDocuments({ status: 'awarded' });
+    
+    // Workspace Statistics
+    const activeWorkspaces = await Workspace.countDocuments({ status: 'active' });
+    const completedWorkspaces = await Workspace.countDocuments({ status: 'completed' });
+    
+    // Payment Statistics
+    const paidMilestones = await Milestone.countDocuments({ paymentStatus: 'completed' });
+    const pendingPayments = await Milestone.countDocuments({ 
+      status: 'approved', 
+      paymentStatus: { $ne: 'completed' } 
+    });
+    
+    // Total revenue calculation
+    const revenueData = await Milestone.aggregate([
+      { $match: { paymentStatus: 'completed' } },
+      { $group: { _id: null, totalRevenue: { $sum: '$amount' } } }
+    ]);
+    const totalRevenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
+    
+    // Recent activity
+    const recentProjects = await Project.find()
+      .populate('client', 'fullName email')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('title status budgetAmount createdAt client');
+      
+    const recentApplications = await Application.find()
+      .populate('freelancer', 'fullName email')
+      .populate('project', 'title')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('status createdAt freelancer project');
+    
+    // Chat activity
+    const totalChats = await Chat.countDocuments();
+    const activeChats = await Chat.countDocuments({ 
+      lastActivity: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
+    });
 
     res.json({
       success: true,
-      stats: { totalUsers, clientsCount, freelancersCount, activeUsers, deletedUsers }
+      stats: {
+        // User metrics
+        totalUsers,
+        clientsCount,
+        freelancersCount,
+        activeUsers,
+        deletedUsers,
+        recentRegistrations,
+        
+        // Project metrics
+        totalProjects,
+        openProjects,
+        awardedProjects,
+        completedProjects,
+        
+        // Application metrics
+        totalApplications,
+        pendingApplications,
+        acceptedApplications,
+        
+        // Workspace metrics
+        activeWorkspaces,
+        completedWorkspaces,
+        
+        // Payment metrics
+        paidMilestones,
+        pendingPayments,
+        totalRevenue,
+        
+        // Communication metrics
+        totalChats,
+        activeChats,
+        
+        // Recent activity
+        recentProjects,
+        recentApplications
+      }
     });
   } catch (error) {
+    console.error('Dashboard stats error:', error);
     res.status(500).json({ success: false, message: 'Error fetching dashboard stats' });
   }
 });

@@ -194,33 +194,41 @@ const ClientDashboard = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 project-cards">
         {projects.map((project) => (
-          <Card key={project._id} className="relative">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{project.title}</h3>
-                <p className="text-gray-600 text-sm line-clamp-3 mb-3">{project.description}</p>
+          <Card key={project._id} className="relative h-80 flex flex-col overflow-hidden p-6">
+            {/* Header Section - Fixed space */}
+            <div className="flex justify-between items-start mb-4 h-20">
+              <div className="flex-1 min-w-0 pr-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 project-card-title leading-tight">{project.title}</h3>
+                <p className="text-gray-600 text-sm project-card-description leading-tight">{project.description}</p>
               </div>
-              {getStatusBadge(project.status)}
+              <div className="flex-shrink-0 ml-2">
+                {getStatusBadge(project.status)}
+              </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+            {/* Middle Section - Fixed space */}
+            <div className="flex items-center justify-between text-sm text-gray-600 mb-4 h-8 flex-shrink-0">
               <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 flex-shrink-0">
                   <CurrencyDollarIcon className="h-4 w-4" />
-                  Rs.{project.budgetAmount}
+                  <span className="truncate">Rs.{project.budgetAmount}</span>
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 flex-shrink-0">
                   <ClockIcon className="h-4 w-4" />
-                  {project.timeframe}
+                  <span className="truncate">{project.timeframe}</span>
                 </span>
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">
+            {/* Spacer to push footer to bottom */}
+            <div className="flex-1"></div>
+
+            {/* Footer Section - Always at bottom */}
+            <div className="flex justify-between items-center h-10 flex-shrink-0">
+              <span className="text-sm text-gray-500 flex-shrink-0 truncate">
                 {project.applicationsCount || 0} applications
               </span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -228,9 +236,10 @@ const ClientDashboard = () => {
                     setSelectedProject(project);
                     setActiveTab('applications');
                   }}
+                  className="whitespace-nowrap text-xs px-2 py-1"
                 >
-                  <EyeIcon className="h-4 w-4" />
-                  View Applications
+                  <EyeIcon className="h-4 w-4 mr-1" />
+                  View
                 </Button>
               </div>
             </div>
