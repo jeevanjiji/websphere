@@ -89,6 +89,30 @@ const userSchema = new mongoose.Schema({
     default: false
   },
   
+  // Track if user has been shown the push notification enable prompt (one-time)
+  hasSeenPushPrompt: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  
+  // Push Notification fields
+  pushSubscription: {
+    endpoint: String,
+    keys: {
+      p256dh: String,
+      auth: String
+    }
+  },
+  notificationPreferences: {
+    email: { type: Boolean, default: true },
+    push: { type: Boolean, default: true },
+    paymentReminders: { type: Boolean, default: true },
+    deliverableReminders: { type: Boolean, default: true },
+    dueDateAlerts: { type: Boolean, default: true },
+    overdueAlerts: { type: Boolean, default: true }
+  },
+  
   // Additional profile fields
   location: {
     type: String,

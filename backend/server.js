@@ -15,6 +15,7 @@ const session   = require('express-session');
 const MongoStore = require('connect-mongo');
 const http      = require('http');
 const socketIo  = require('socket.io');
+const JobScheduler = require('./jobs/scheduler');
 
 const app  = express();
 const server = http.createServer(app);
@@ -85,6 +86,9 @@ const connectDB = async (retries = 5) => {
     // Start milestone deadline checker
     const { startDeadlineChecker } = require('./middlewares/deadlineCheck');
     startDeadlineChecker();
+    
+    // Initialize job scheduler for due date notifications
+    JobScheduler.init();
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err.message);
     if (retries > 0) {

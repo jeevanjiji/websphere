@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BellIcon, 
@@ -6,26 +6,87 @@ import {
   ChatBubbleLeftIcon,
   BriefcaseIcon,
   UserIcon,
-  CheckIcon
+  CheckIcon,
+  CurrencyRupeeIcon,
+  DocumentTextIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { useSocket } from '../contexts/SocketContext';
+import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications, clearNotifications, markNotificationAsRead } = useSocket();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:5000');
+  // Auto-filter notifications based on user role; no tab switching
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchNotifications();
+    }
+  }, [isOpen, user]);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/notifications/list`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 20 }
+      });
+
+      if (response.data.success) {
+        setNotifications(response.data.notifications);
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getNotificationIcon = (type) => {
     switch (type) {
+      case 'payment-reminder':
+      case 'payment-overdue':
+        return <CurrencyRupeeIcon className="h-5 w-5 text-green-600" />;
+      case 'deliverable-reminder':
+      case 'deliverable-overdue':
+        return <DocumentTextIcon className="h-5 w-5 text-blue-600" />;
       case 'message':
-        return <ChatBubbleLeftIcon className="h-5 w-5 text-blue-600" />;
+        return <ChatBubbleLeftIcon className="h-5 w-5 text-purple-600" />;
       case 'project':
-        return <BriefcaseIcon className="h-5 w-5 text-green-600" />;
-      case 'user':
-        return <UserIcon className="h-5 w-5 text-purple-600" />;
+      case 'milestone':
+        return <BriefcaseIcon className="h-5 w-5 text-orange-600" />;
       default:
         return <BellIcon className="h-5 w-5 text-gray-600" />;
     }
   };
+
+  const filteredNotifications = notifications.filter(n => {
+    // Since notifications are already filtered by userRole on the backend,
+    // we can show all notifications for the user's role
+    // But we can still filter by type if needed for specific views
+    
+    if (user?.role === 'client') {
+      // Client should see payment-related and project updates (deliverable status changes)
+      return n.type?.includes('payment') || n.type?.includes('deliverable') || n.type?.includes('project');
+    }
+    if (user?.role === 'freelancer') {
+      // Freelancer should see deliverable-related and payment updates (payment received)
+      return n.type?.includes('deliverable') || n.type?.includes('payment') || n.type?.includes('project');
+    }
+    // Admin or unknown role: show all
+    return true;
+  });
 
   const formatTime = (timestamp) => {
     const now = new Date();
@@ -43,6 +104,51 @@ const NotificationCenter = () => {
     }
   };
 
+  const handleNotificationClick = async (notification) => {
+    try {
+      // Mark as read
+      if (!notification.read) {
+        const token = localStorage.getItem('token');
+        await axios.put(
+          `${API_BASE_URL}/api/notifications/${notification._id}/read`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Update local state
+        setNotifications(prev =>
+          prev.map(n => n._id === notification._id ? { ...n, read: true } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+
+      // Navigate to workspace if available
+      if (notification.data?.workspaceId) {
+        navigate(`/workspace/${notification.data.workspaceId}`);
+        setIsOpen(false);
+      }
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${API_BASE_URL}/api/notifications/read-all`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Notification Bell */}
@@ -51,13 +157,13 @@ const NotificationCenter = () => {
         className="relative p-2 text-gray-600 hover:text-gray-900 transition-colors duration-200"
       >
         <BellIcon className="h-6 w-6" />
-        {notifications.length > 0 && (
+        {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium"
           >
-            {notifications.length > 9 ? '9+' : notifications.length}
+            {unreadCount > 9 ? '9+' : unreadCount}
           </motion.span>
         )}
       </button>
@@ -81,54 +187,68 @@ const NotificationCenter = () => {
             >
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Notifications
-                </h3>
-                {notifications.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                  <p className="text-xs text-gray-500">
+                    {user?.role === 'client' ? 'Payment reminders and overdue alerts' : user?.role === 'freelancer' ? 'Deliverable reminders and overdue alerts' : 'All notifications'}
+                  </p>
+                </div>
+                {unreadCount > 0 && (
                   <button
-                    onClick={clearNotifications}
+                    onClick={handleClearAll}
                     className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
                   >
-                    Clear all
+                    Mark all read
                   </button>
                 )}
               </div>
 
               {/* Notifications List */}
               <div className="max-h-80 overflow-y-auto">
-                {notifications.length === 0 ? (
+                {loading ? (
+                  <div className="p-8 text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-500 mt-2">Loading...</p>
+                  </div>
+                ) : filteredNotifications.length === 0 ? (
                   <div className="p-8 text-center">
                     <BellIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No new notifications</p>
+                    <p className="text-gray-500">
+                      {user?.role === 'client' ? 'No payment notifications yet' : user?.role === 'freelancer' ? 'No deliverable notifications yet' : 'No notifications yet'}
+                    </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {notifications.map((notification, index) => (
+                    {filteredNotifications.map((notification) => (
                       <motion.div
-                        key={index}
+                        key={notification._id}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
-                        onClick={() => markNotificationAsRead(index)}
+                        className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer group ${
+                          !notification.read ? 'bg-blue-50' : ''
+                        }`}
+                        onClick={() => handleNotificationClick(notification)}
                       >
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0 mt-1">
                             {getNotificationIcon(notification.type)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
+                            <p className={`text-sm font-medium text-gray-900 truncate ${
+                              !notification.read ? 'font-semibold' : ''
+                            }`}>
                               {notification.title}
                             </p>
                             <p className="text-sm text-gray-600 line-clamp-2">
                               {notification.body}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">
-                              {formatTime(notification.timestamp)}
+                              {formatTime(notification.createdAt)}
                             </p>
                           </div>
-                          <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded">
-                            <CheckIcon className="h-4 w-4 text-gray-500" />
-                          </button>
+                          {!notification.read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-2"></div>
+                          )}
                         </div>
                       </motion.div>
                     ))}

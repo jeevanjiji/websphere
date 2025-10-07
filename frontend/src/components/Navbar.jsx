@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GlobeAltIcon, Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { GlobeAltIcon, Bars3Icon, XMarkIcon, ChevronDownIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationCenter from './NotificationCenter';
+import NotificationSettings from './NotificationSettings';
 import OnlineStatusIndicator from './OnlineStatusIndicator';
 import { HeaderConnectionStatus } from './ConnectionStatus';
 import { TourButton } from './ClientTour';
+import pushNotificationService from '../services/pushNotificationService';
+import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +30,99 @@ const Navbar = () => {
       isAuthenticated 
     });
   }, [user, isAuthenticated]);
+  
+  // Initialize push notifications when user logs in - one-time prompt per user
+  useEffect(() => {
+    const maybePromptPushEnable = async () => {
+      if (!isAuthenticated || !user || !pushNotificationService.isSupported()) return;
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:5000');
+        const token = localStorage.getItem('token');
+        const { data } = await axios.get(`${apiBaseUrl}/api/notifications/should-prompt`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (data?.success && data.shouldPrompt && !pushNotificationService.isPermissionBlocked()) {
+          // Show prompt toast one-time
+          toast((t) => (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Enable Push Notifications?</p>
+              <p className="text-sm text-gray-600">Get alerts for payment due dates and deliverable deadlines.</p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      await pushNotificationService.subscribe();
+                      toast.success('Push notifications enabled!');
+                    } catch (err) {
+                      if (err?.message === 'PERMISSION_BLOCKED') {
+                        showPermissionBlockedToast();
+                      } else {
+                        toast.error('Failed to enable notifications');
+                      }
+                    } finally {
+                      try {
+                        await axios.post(`${apiBaseUrl}/api/notifications/prompt-seen`, {}, { headers: { Authorization: `Bearer ${token}` }});
+                      } catch (_) {}
+                      toast.dismiss(t.id);
+                    }
+                  }}
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Enable
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await axios.post(`${apiBaseUrl}/api/notifications/prompt-seen`, {}, { headers: { Authorization: `Bearer ${token}` }});
+                    } catch (_) {}
+                    toast.dismiss(t.id);
+                  }}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+          ), { duration: 15000, icon: '🔔' });
+        }
+      } catch (e) {
+        console.error('Push prompt check failed:', e);
+      }
+    };
+    maybePromptPushEnable();
+  }, [isAuthenticated, user]);
+
+  // Function to show permission blocked toast with instructions
+  const showPermissionBlockedToast = () => {
+    toast((t) => (
+      <div className="max-w-md">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 text-2xl">🔒</div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900 mb-2">Notifications Blocked</p>
+            <p className="text-sm text-gray-600 mb-3">
+              You've blocked notifications for this site. To enable them:
+            </p>
+            <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside mb-3">
+              <li>Click the lock icon (🔒) in the address bar</li>
+              <li>Find "Notifications" in the permissions list</li>
+              <li>Change it from "Block" to "Allow"</li>
+              <li>Reload this page</li>
+            </ol>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    ), {
+      duration: 15000,
+      icon: '⚠️'
+    });
+  };
 
   useEffect(() => {
     console.log('Navbar: Component mounted');
@@ -260,6 +358,15 @@ const Navbar = () => {
                   <TourButton onClick={() => window.startClientTour && window.startClientTour()} />
                 )}
                 
+                {/* Notification Settings Button */}
+                <button
+                  onClick={() => setShowNotificationSettings(true)}
+                  className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Notification Settings"
+                >
+                  <Cog6ToothIcon className="w-6 h-6" />
+                </button>
+                
                 {/* Notification Center */}
                 <div className="notification-center">
                   <NotificationCenter />
@@ -486,6 +593,12 @@ const Navbar = () => {
           </motion.div>
         )}
       </div>
+      
+      {/* Notification Settings Modal */}
+      <NotificationSettings
+        isOpen={showNotificationSettings}
+        onClose={() => setShowNotificationSettings(false)}
+      />
     </motion.nav>
   );
 };

@@ -209,30 +209,42 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 project-cards">
         {projects.map((project) => (
-          <Card key={project._id} className="relative">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{project.title}</h3>
-                <p className="text-gray-600 text-sm line-clamp-3 mb-3">{project.description}</p>
+          <Card key={project._id} className="relative h-80 flex flex-col p-6">
+            {/* Header with title and status */}
+            <div className="flex justify-between items-start mb-3 flex-shrink-0">
+              <div className="flex-1 min-w-0 pr-3">
+                <h3 className="text-xl font-bold text-gray-900 mb-1 leading-tight"
+                    title={project.title}>
+                  {project.title}
+                </h3>
               </div>
-              {getStatusBadge(project.status)}
-            </div>
-
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1">
-                  <CurrencyDollarIcon className="h-4 w-4" />
-                  Rs.{project.budgetAmount}
-                </span>
-                <span className="flex items-center gap-1">
-                  <ClockIcon className="h-4 w-4" />
-                  {project.timeframe}
-                </span>
+              <div className="flex-shrink-0">
+                {getStatusBadge(project.status)}
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">
+            {/* Description */}
+            <div className="flex-1 mb-4">
+              <p className="text-gray-600 text-sm leading-relaxed line-clamp-4">
+                {project.description}
+              </p>
+            </div>
+
+            {/* Budget and Timeframe */}
+            <div className="flex items-center justify-between text-sm text-gray-700 mb-4 flex-shrink-0 bg-gray-50 rounded-lg p-3">
+              <div className="flex items-center gap-1">
+                <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
+                <span className="font-semibold">Rs.{project.budgetAmount}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <ClockIcon className="h-4 w-4 text-blue-600" />
+                <span>{project.timeframe}</span>
+              </div>
+            </div>
+
+            {/* Footer with applications count and action button */}
+            <div className="flex justify-between items-center pt-3 border-t border-gray-200 flex-shrink-0">
+              <span className="text-sm text-gray-500 font-medium">
                 {project.applicationsCount || 0} applications
               </span>
               <div className="flex gap-2">
@@ -241,6 +253,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
                     variant="primary"
                     size="sm"
                     onClick={() => handleOpenWorkspace(project._id, project.acceptedApplicationId)}
+                    className="flex items-center gap-2"
                   >
                     <UserIcon className="h-4 w-4" />
                     Open Workspace
@@ -253,6 +266,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
                       setSelectedProject(project);
                       setActiveTab('applications');
                     }}
+                    className="flex items-center gap-2"
                   >
                     <EyeIcon className="h-4 w-4" />
                     View Applications

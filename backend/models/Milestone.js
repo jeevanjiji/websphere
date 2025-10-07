@@ -48,6 +48,20 @@ const milestoneSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  
+  // Notification tracking
+  paymentReminderSent: {
+    type: Boolean,
+    default: false
+  },
+  paymentOverdueNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  deliverableReminderSent: {
+    type: Boolean,
+    default: false
+  },
   autoExtensionDays: {
     type: Number,
     default: 0, // Auto-extension days granted
