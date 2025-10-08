@@ -101,7 +101,6 @@ const FreelancerDashboard = () => {
     }
     
     setUser(userData);
-    setProjects(mockProjects);
     setLoading(false);
   }, [navigate]);
 

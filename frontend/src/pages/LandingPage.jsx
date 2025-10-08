@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
-import ProjectCards from '../components/ProjectCards';
+import RoleBasedContent from '../components/RoleBasedContent';
 import HowItWorks from '../components/HowItWorks';
 import Footer from '../components/Footer';
 import { motion } from 'framer-motion';
@@ -122,13 +122,28 @@ const LandingPage = () => {
       return;
     }
 
-    // Redirect based on user role
-    if (user.role === 'admin') {
-      navigate('/admin-dashboard');
-    } else if (user.role === 'client') {
-      navigate('/client');
-    } else if (user.role === 'freelancer') {
+    // Handle specific navigation types from RoleBasedContent
+    if (tabType === 'freelancer-projects' || tabType === 'freelancer-dashboard') {
       navigate('/freelancer');
+    } else if (tabType === 'client-freelancers') {
+      navigate('/client?tab=browse-freelancers');
+    } else if (tabType === 'client-dashboard') {
+      navigate('/client');
+    } else if (tabType === 'browse') {
+      // Guest browsing
+      navigate('/browse');
+    } else if (tabType === 'project') {
+      // For project cards clicked by guests
+      navigate('/login');
+    } else {
+      // Default role-based navigation
+      if (user.role === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (user.role === 'client') {
+        navigate('/client');
+      } else if (user.role === 'freelancer') {
+        navigate('/freelancer');
+      }
     }
   };
 
@@ -136,7 +151,7 @@ const LandingPage = () => {
     <div className="landing-page">
       <Navbar key={`navbar-${user?.id || 'anonymous'}-${isAuthenticated}`} />
       <Hero onTabClick={handleTabClick} />
-      <ProjectCards onCardClick={handleTabClick} />
+      <RoleBasedContent onCardClick={handleTabClick} />
       <TestimonialsSection /> {/* Add this new section */}
       <HowItWorks onTabClick={handleTabClick} />
       <Footer />

@@ -12,7 +12,7 @@ import pushNotificationService from '../services/pushNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 
-const NotificationSettings = ({ isOpen, onClose }) => {
+const NotificationSettings = ({ isOpen, onClose, isDropdown = false }) => {
   const { user } = useAuth();
   const [preferences, setPreferences] = useState({
     email: true,
@@ -115,10 +115,10 @@ const NotificationSettings = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-1rem)] overflow-hidden flex flex-col">
-        {/* Header */}
+  const content = (
+    <>
+      {/* Header */}
+      {!isDropdown && (
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -133,9 +133,25 @@ const NotificationSettings = ({ isOpen, onClose }) => {
             </button>
           </div>
         </div>
+      )}
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0">
+      {/* Dropdown Header */}
+      {isDropdown && (
+        <div className="px-4 py-3 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <XCircleIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className={isDropdown ? "p-4 max-h-80 overflow-y-auto" : "p-6 overflow-y-auto flex-1 min-h-0"}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -518,34 +534,48 @@ const NotificationSettings = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="border-t bg-gray-50 px-6 py-4 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <CheckCircleIcon className="w-5 h-5" />
-                Save Settings
-              </>
-            )}
-          </button>
+        {!isDropdown && (
+          <div className="border-t bg-gray-50 px-6 py-4 flex items-center justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="w-5 h-5" />
+                  Save Settings
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </>
+    );
+
+    // Return different wrappers based on mode
+    if (isDropdown) {
+      return content;
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-1rem)] overflow-hidden flex flex-col">
+          {content}
         </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default NotificationSettings;

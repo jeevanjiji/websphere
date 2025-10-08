@@ -158,6 +158,15 @@ try {
   console.error('❌ Failed to load applications router:', err.message);
 }
 
+// Freelancers router
+try {
+  const freelancersRouter = require('./routes/freelancers');
+  app.use('/api/freelancers', freelancersRouter);
+  console.log('✅ Freelancers router connected → /api/freelancers');
+} catch (err) {
+  console.error('❌ Failed to load freelancers router:', err.message);
+}
+
 // Chat router
 try {
   const chatRouter = require('./routes/chat');

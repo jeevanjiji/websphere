@@ -360,15 +360,16 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
               >
                 <div className="flex gap-4">
                   {/* Project Image */}
-                  {project.image && (
-                    <div className="flex-shrink-0">
-                      <img
-                        src={project.image}
-                        alt={project.categoryName || formattedProject.title}
-                        className="w-24 h-16 rounded-lg object-cover"
-                      />
-                    </div>
-                  )}
+                  <div className="flex-shrink-0">
+                    <img
+                      src={project.image || 'https://images.unsplash.com/photo-1553028826-f4804a6dba3b?w=400&h=250&fit=crop&crop=center'}
+                      alt={project.categoryName || formattedProject.title}
+                      className="w-24 h-16 rounded-lg object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1553028826-f4804a6dba3b?w=400&h=250&fit=crop&crop=center';
+                      }}
+                    />
+                  </div>
                   
                   {/* Project Content */}
                   <div className="flex-1">

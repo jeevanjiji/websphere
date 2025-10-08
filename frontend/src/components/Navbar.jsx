@@ -18,6 +18,24 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [settingsDropdownRef, setSettingsDropdownRef] = useState(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (settingsDropdownRef && !settingsDropdownRef.contains(event.target)) {
+        setShowNotificationSettings(false);
+      }
+    };
+
+    if (showNotificationSettings) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotificationSettings, settingsDropdownRef]);
 
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -241,7 +259,7 @@ const Navbar = () => {
     if (linkType === 'talent') {
       // Find Talent - go to client dashboard/page
       if (user && user.role === 'client') {
-        navigate('/client');
+        navigate('/client?tab=freelancers');
       } else {
         // Show general "hire talent" information for non-clients
         navigate('/register'); // They can register as client
@@ -358,14 +376,26 @@ const Navbar = () => {
                   <TourButton onClick={() => window.startClientTour && window.startClientTour()} />
                 )}
                 
-                {/* Notification Settings Button */}
-                <button
-                  onClick={() => setShowNotificationSettings(true)}
-                  className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Notification Settings"
-                >
-                  <Cog6ToothIcon className="w-6 h-6" />
-                </button>
+                {/* Notification Settings Dropdown */}
+                <div className="relative" ref={setSettingsDropdownRef}>
+                  <button
+                    onClick={() => setShowNotificationSettings(!showNotificationSettings)}
+                    className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Notification Settings"
+                  >
+                    <Cog6ToothIcon className="w-6 h-6" />
+                  </button>
+                  
+                  {showNotificationSettings && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                      <NotificationSettings 
+                        isOpen={showNotificationSettings}
+                        onClose={() => setShowNotificationSettings(false)}
+                        isDropdown={true}
+                      />
+                    </div>
+                  )}
+                </div>
                 
                 {/* Notification Center */}
                 <div className="notification-center">
@@ -594,11 +624,7 @@ const Navbar = () => {
         )}
       </div>
       
-      {/* Notification Settings Modal */}
-      <NotificationSettings
-        isOpen={showNotificationSettings}
-        onClose={() => setShowNotificationSettings(false)}
-      />
+
     </motion.nav>
   );
 };

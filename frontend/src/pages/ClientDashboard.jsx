@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   PlusIcon,
@@ -8,7 +8,8 @@ import {
   ChatBubbleLeftIcon,
   EyeIcon,
   ClockIcon,
-  CurrencyDollarIcon
+  CurrencyDollarIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import Button from '../components/ui/Button';
@@ -18,11 +19,14 @@ import ProjectApplicationsList from '../components/ProjectApplicationsList';
 import ChatInterface from '../components/ChatInterface';
 import SimplePostProjectForm from '../components/SimplePostProjectForm';
 import ClientTour from '../components/ClientTour';
+import FreelancerBrowser from '../components/FreelancerBrowser';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -38,6 +42,7 @@ const ClientDashboard = () => {
 
   const tabs = [
     { id: 'projects', name: 'My Projects', icon: BriefcaseIcon },
+    { id: 'freelancers', name: 'Browse Freelancers', icon: UserGroupIcon },
     { id: 'applications', name: 'Applications', icon: UserIcon },
     { id: 'chats', name: 'Messages', icon: ChatBubbleLeftIcon }
   ];
@@ -80,6 +85,14 @@ const ClientDashboard = () => {
     }
     fetchMyProjects();
   }, [navigate, isAuthenticated, user, fetchMyProjects, authLoading]);
+
+  // Handle tab from URL parameters
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && ['projects', 'freelancers', 'applications', 'chats'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
 
   // Tour functionality
   useEffect(() => {
@@ -333,6 +346,8 @@ const ClientDashboard = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'freelancers':
+        return <FreelancerBrowser />;
       case 'applications':
         return renderApplications();
       case 'chats':
