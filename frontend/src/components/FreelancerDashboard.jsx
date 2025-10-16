@@ -58,11 +58,17 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     projectId: null,
     applicationId: null
   });
+  
+  // AI Recommendations state
+  const [aiRecommendations, setAiRecommendations] = useState([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(true);
 
   // Get user from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const tabs = [
+    { id: 'recommendations', name: '🎯 AI Matches', icon: StarIcon },
     { id: 'browse', name: 'Browse Projects', icon: MagnifyingGlassIcon },
     { id: 'proposals', name: 'My Proposals', icon: DocumentTextIcon },
     { id: 'messages', name: 'Messages', icon: UserIcon },
@@ -121,9 +127,59 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     }
   };
 
+  // Fetch AI Recommendations
+  const fetchAIRecommendations = async () => {
+    setLoadingRecommendations(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to view recommendations');
+        return;
+      }
+
+      // Use user._id or user.userId, whichever exists
+      const userId = user._id || user.userId || user.id;
+      if (!userId) {
+        console.error('❌ No user ID found in user object:', user);
+        toast.error('User not properly authenticated');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/matching/projects/${userId}?limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('🎯 AI Recommendations fetched:', data.data.projects?.length || 0);
+        setAiRecommendations(data.data.projects || []);
+      } else {
+        console.error('❌ Failed to fetch AI recommendations:', data.message);
+        if (data.message.includes('not found')) {
+          // Freelancer profile might not be complete
+          setAiRecommendations([]);
+        } else {
+          toast.error(data.message || 'Failed to fetch recommendations');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching AI recommendations:', error);
+      // Don't show error toast for AI features - they're optional
+      setAiRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
   // Load data when component mounts or when activeTab changes
   useEffect(() => {
-    if (activeTab === 'browse') {
+    if (activeTab === 'recommendations') {
+      fetchAIRecommendations();
+    } else if (activeTab === 'browse') {
       fetchProjects(1, searchTerm, selectedSkills);
     } else if (activeTab === 'proposals') {
       fetchMyApplications();
@@ -275,6 +331,211 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       client: project.client?.fullName || 'Anonymous Client'
     };
   };
+
+  const renderAIRecommendations = () => (
+    <div className="space-y-6">
+      {/* AI Recommendations Header */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-full text-lg font-semibold mb-4">
+          <StarIcon className="h-6 w-6" />
+          AI-Powered Project Recommendations
+        </div>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Our AI analyzes your skills, experience, and preferences to find the perfect projects for you. 
+          Projects are scored based on skill match, budget compatibility, and portfolio relevance.
+        </p>
+      </div>
+
+      {/* Toggle for showing match scores */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <h3 className="text-xl font-semibold text-gray-900">
+            {aiRecommendations.length} Personalized Matches
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchAIRecommendations}
+            disabled={loadingRecommendations}
+          >
+            {loadingRecommendations ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
+        
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showRecommendations}
+            onChange={(e) => setShowRecommendations(e.target.checked)}
+            className="rounded"
+          />
+          Show match details
+        </label>
+      </div>
+
+      {/* Loading State */}
+      {loadingRecommendations && (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Finding perfect matches for you...</span>
+        </div>
+      )}
+
+      {/* AI Recommendations Grid */}
+      {!loadingRecommendations && aiRecommendations.length === 0 && (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <StarIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No recommendations yet</h3>
+          <p className="text-gray-600 mb-4">
+            Complete your profile with skills and portfolio to get AI-powered project recommendations.
+          </p>
+          <Button variant="primary" onClick={() => setActiveTab('browse')}>
+            Browse All Projects
+          </Button>
+        </div>
+      )}
+
+      {!loadingRecommendations && aiRecommendations.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {aiRecommendations.map((project) => (
+            <motion.div
+              key={project._id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg shadow-card hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-blue-500"
+            >
+              {/* Match Score Badge */}
+              {showRecommendations && project.scores && (
+                <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-4 py-2">
+                  <div className="flex justify-between items-center text-sm font-medium">
+                    <span>Match Score</span>
+                    <span className="text-lg font-bold">{Math.round(project.scores.total * 100)}%</span>
+                  </div>
+                  {project.matchReason && (
+                    <div className="text-xs mt-1 text-green-100">
+                      {project.matchReason}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
+                    {project.title}
+                  </h3>
+                  <Badge variant="primary" size="small">
+                    {project.categoryName || project.category}
+                  </Badge>
+                </div>
+
+                <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                  {project.description}
+                </p>
+
+                {/* Skills */}
+                {project.skills && project.skills.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-1">
+                      {project.skills.slice(0, 3).map((skill, index) => (
+                        <Badge
+                          key={`${skill}-${index}`}
+                          variant={showRecommendations && project.scores?.skill > 0.7 ? 'primary' : 'secondary'}
+                          size="small"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                      {project.skills.length > 3 && (
+                        <Badge variant="secondary" size="small">
+                          +{project.skills.length - 3} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Details */}
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <CurrencyDollarIcon className="h-4 w-4" />
+                      {project.budgetType === 'hourly' 
+                        ? `$${project.budgetAmount}/hr` 
+                        : `$${project.budgetAmount}`}
+                    </span>
+                    {project.deadline && (
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-4 w-4" />
+                        {new Date(project.deadline).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Match Breakdown */}
+                {showRecommendations && project.scores && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-xs font-medium text-gray-700 mb-2">Match Breakdown:</div>
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Skills:</span>
+                        <span className="font-medium">{Math.round(project.scores.skill * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Rate:</span>
+                        <span className="font-medium">{Math.round(project.scores.rate * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Portfolio:</span>
+                        <span className="font-medium">{Math.round(project.scores.portfolio * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Overall:</span>
+                        <span className="font-bold text-blue-600">{Math.round(project.scores.total * 100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Button */}
+                <Button 
+                  variant="primary" 
+                  size="medium"
+                  className="w-full"
+                  onClick={() => setApplicationModal({
+                    isOpen: true,
+                    project: project
+                  })}
+                >
+                  <StarIcon className="h-4 w-4 mr-2" />
+                  Apply to This Match
+                </Button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Call to Action */}
+      {!loadingRecommendations && aiRecommendations.length > 0 && (
+        <div className="text-center mt-8 p-6 bg-blue-50 rounded-lg">
+          <h4 className="text-lg font-semibold text-gray-900 mb-2">Want more matches?</h4>
+          <p className="text-gray-600 mb-4">
+            Keep your profile updated with new skills and portfolio items to get better recommendations.
+          </p>
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" onClick={() => setActiveTab('browse')}>
+              Browse All Projects
+            </Button>
+            <Button variant="primary" onClick={fetchAIRecommendations}>
+              Refresh Recommendations
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const renderBrowseProjects = () => (
     <div className="space-y-6">
@@ -684,6 +945,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'recommendations':
+        return renderAIRecommendations();
       case 'browse':
         return renderBrowseProjects();
       case 'proposals':
@@ -695,7 +958,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       case 'earnings':
         return renderEarnings();
       default:
-        return renderBrowseProjects();
+        return renderAIRecommendations(); // Default to AI recommendations first
     }
   };
 

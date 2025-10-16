@@ -9,9 +9,9 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
     try {
       setProcessing(true);
 
-      // Create payment order
+      // Create escrow payment order
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/milestone/create', {
+      const response = await fetch('http://localhost:5000/api/payments/escrow/create', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -19,6 +19,12 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         },
         body: JSON.stringify({ milestoneId: milestone._id })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error response:', errorData);
+        throw new Error(errorData.message || `Server error: ${response.status}`);
+      }
 
       const data = await response.json();
 
@@ -43,8 +49,8 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         },
         handler: async function (response) {
           try {
-            // Verify payment
-            const verifyResponse = await fetch('http://localhost:5000/api/payments/milestone/verify', {
+            // Verify escrow payment
+            const verifyResponse = await fetch('http://localhost:5000/api/payments/escrow/verify', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -135,14 +141,24 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         <h3 className="text-xl font-semibold mb-4">Complete Milestone Payment</h3>
         
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h4 className="font-medium text-lg mb-2">{milestone.title}</h4>
-          <p className="text-gray-600 text-sm mb-3">{milestone.description}</p>
+          <h4 className="font-medium text-lg mb-3">{milestone.title}</h4>
           
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600">Payment Amount:</span>
-            <span className="text-2xl font-bold text-green-600">
-              {milestone.currency} {milestone.amount}
-            </span>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Milestone Amount:</span>
+              <span className="font-semibold">₹{milestone.amount}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Platform Service Fee:</span>
+              <span className="text-gray-500">₹35</span>
+            </div>
+            <hr className="my-2" />
+            <div className="flex justify-between items-center">
+              <span className="text-gray-800 font-medium">Total Payment:</span>
+              <span className="text-2xl font-bold text-green-600">
+                ₹{milestone.amount + 35}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -170,27 +186,10 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
           </div>
         </div>
 
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <div className="flex items-start">
-            <span className="text-blue-600 mr-2">ℹ️</span>
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Secure Payment</p>
-              <p>Your payment is processed securely through Razorpay. Choose from multiple payment options including credit/debit cards, UPI (PhonePe, GPay, Paytm), net banking, digital wallets, EMI, and pay later options. The amount will be released to the freelancer once you confirm milestone completion.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-yellow-50 rounded-lg">
-          <div className="flex items-start">
-            <span className="text-yellow-600 mr-2">🧪</span>
-            <div className="text-sm text-yellow-800">
-              <p className="font-medium mb-1">Test Mode Instructions</p>
-              <p>For UPI testing in sandbox mode, use these test UPI IDs:</p>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li><strong>success@razorpay</strong> - Simulates successful payment</li>
-                <li><strong>failure@razorpay</strong> - Simulates failed payment</li>
-              </ul>
-            </div>
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <div className="flex items-center text-sm text-blue-800">
+            <span className="text-blue-600 mr-2">🔒</span>
+            <p>Payment secured in escrow until work is approved and delivered</p>
           </div>
         </div>
 
@@ -206,7 +205,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
                 Processing...
               </div>
             ) : (
-              `Pay ${milestone.currency} ${milestone.amount}`
+              `Pay ₹${milestone.amount + 35}`
             )}
           </button>
           <button

@@ -552,4 +552,273 @@ router.delete('/users/freelancers/delete-all-for-testing', authenticate, isAdmin
   }
 });
 
+// ================================
+// ESCROW MANAGEMENT ROUTES
+// ================================
+
+const EscrowService = require('../services/escrowService');
+const Escrow = require('../models/Escrow');
+
+// GET /api/admin/escrows - Get all escrows with filters
+router.get('/escrows', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20, search } = req.query;
+    
+    let query = {};
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    // Search functionality
+    if (search) {
+      query.$or = [
+        { 'milestone.title': { $regex: search, $options: 'i' } },
+        { 'client.fullName': { $regex: search, $options: 'i' } },
+        { 'freelancer.fullName': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const escrows = await Escrow.find(query)
+      .populate('milestone', 'title description amount')
+      .populate('client', 'fullName email')
+      .populate('freelancer', 'fullName email')
+      .populate('workspace', 'status')
+      .populate('releasedBy', 'fullName')
+      .populate('disputeResolvedBy', 'fullName')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalEscrows = await Escrow.countDocuments(query);
+    const totalPages = Math.ceil(totalEscrows / parseInt(limit));
+
+    console.log(`✅ Retrieved ${escrows.length} escrows for admin`);
+
+    res.json({
+      success: true,
+      data: escrows,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalItems: totalEscrows,
+        itemsPerPage: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching escrows for admin:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch escrows'
+    });
+  }
+});
+
+// GET /api/admin/escrows/stats - Get escrow statistics
+router.get('/escrows/stats', authenticate, isAdmin, async (req, res) => {
+  try {
+    const stats = await Escrow.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$totalAmount' },
+          serviceChargeTotal: { $sum: '$serviceCharge' }
+        }
+      }
+    ]);
+
+    const totalEscrows = await Escrow.countDocuments();
+    const pendingReleases = await Escrow.countDocuments({
+      status: 'active',
+      deliverableSubmitted: true,
+      clientApprovalStatus: 'approved'
+    });
+    
+    const disputes = await Escrow.countDocuments({
+      status: 'disputed'
+    });
+
+    const autoReleaseEligible = await Escrow.find({
+      status: 'active',
+      deliverableSubmitted: true,
+      disputeRaised: false
+    });
+
+    let autoReleaseCount = 0;
+    for (const escrow of autoReleaseEligible) {
+      if (escrow.isAutoReleaseDue) {
+        autoReleaseCount++;
+      }
+    }
+
+    console.log('✅ Escrow statistics calculated');
+
+    res.json({
+      success: true,
+      data: {
+        totalEscrows,
+        pendingReleases,
+        disputes,
+        autoReleaseEligible: autoReleaseCount,
+        statusBreakdown: stats,
+        summary: {
+          totalValue: stats.reduce((sum, item) => sum + item.totalAmount, 0),
+          totalServiceCharges: stats.reduce((sum, item) => sum + item.serviceChargeTotal, 0)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error calculating escrow stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate escrow statistics'
+    });
+  }
+});
+
+// POST /api/admin/escrows/:escrowId/release - Admin release funds
+router.post('/escrows/:escrowId/release', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { escrowId } = req.params;
+    const { releaseReason, notes } = req.body;
+
+    const escrow = await Escrow.findById(escrowId);
+    if (!escrow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Escrow not found'
+      });
+    }
+
+    const result = await EscrowService.releaseFunds(
+      escrow.milestone, 
+      req.user.id, 
+      releaseReason || 'Admin manual release'
+    );
+
+    console.log(`✅ Admin released escrow funds: ${escrowId}`);
+
+    res.json({
+      success: true,
+      message: 'Funds released successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Error releasing escrow funds:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// POST /api/admin/escrows/:escrowId/resolve-dispute - Admin resolve dispute
+router.post('/escrows/:escrowId/resolve-dispute', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { escrowId } = req.params;
+    const { resolution, refundToClient, releaseToFreelancer, notes } = req.body;
+
+    const escrow = await Escrow.findById(escrowId);
+    if (!escrow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Escrow not found'
+      });
+    }
+
+    if (escrow.status !== 'disputed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Escrow is not in disputed state'
+      });
+    }
+
+    const result = await EscrowService.resolveDispute(escrow.milestone, req.user.id, {
+      resolution,
+      refundToClient,
+      releaseToFreelancer,
+      notes
+    });
+
+    console.log(`✅ Admin resolved dispute for escrow: ${escrowId}`);
+
+    res.json({
+      success: true,
+      message: 'Dispute resolved successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Error resolving dispute:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// POST /api/admin/escrows/auto-release - Process auto-releases
+router.post('/escrows/auto-release', authenticate, isAdmin, async (req, res) => {
+  try {
+    const releasedCount = await EscrowService.processAutoReleases();
+
+    console.log(`✅ Processed auto-releases: ${releasedCount} escrows`);
+
+    res.json({
+      success: true,
+      message: `Successfully auto-released ${releasedCount} escrows`,
+      data: { releasedCount }
+    });
+  } catch (error) {
+    console.error('❌ Error processing auto-releases:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process auto-releases'
+    });
+  }
+});
+
+// GET /api/admin/escrows/:escrowId - Get detailed escrow information
+router.get('/escrows/:escrowId', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { escrowId } = req.params;
+
+    const escrow = await Escrow.findById(escrowId)
+      .populate('milestone', 'title description amount status')
+      .populate('workspace', 'status')
+      .populate('client', 'fullName email')
+      .populate('freelancer', 'fullName email')
+      .populate('releasedBy', 'fullName email')
+      .populate('disputeResolvedBy', 'fullName email')
+      .populate({
+        path: 'workspace',
+        populate: {
+          path: 'project',
+          select: 'title'
+        }
+      });
+
+    if (!escrow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Escrow not found'
+      });
+    }
+
+    console.log(`✅ Retrieved escrow details: ${escrowId}`);
+
+    res.json({
+      success: true,
+      data: escrow
+    });
+  } catch (error) {
+    console.error('❌ Error fetching escrow details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch escrow details'
+    });
+  }
+});
+
 module.exports = router;

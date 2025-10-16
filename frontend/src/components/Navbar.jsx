@@ -72,10 +72,15 @@ const Navbar = () => {
                       await pushNotificationService.subscribe();
                       toast.success('Push notifications enabled!');
                     } catch (err) {
+                      console.log('Push notification error:', err);
                       if (err?.message === 'PERMISSION_BLOCKED') {
                         showPermissionBlockedToast();
+                      } else if (err?.message?.includes('not available in your browser or network environment')) {
+                        toast.error('Push notifications not available in development mode', { duration: 4000 });
+                      } else if (err?.message?.includes('does not support')) {
+                        toast.error('Your browser does not support push notifications');
                       } else {
-                        toast.error('Failed to enable notifications');
+                        toast.error('Failed to enable notifications - this is normal in development mode');
                       }
                     } finally {
                       try {

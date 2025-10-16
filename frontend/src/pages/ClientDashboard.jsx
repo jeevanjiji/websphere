@@ -20,6 +20,7 @@ import ChatInterface from '../components/ChatInterface';
 import SimplePostProjectForm from '../components/SimplePostProjectForm';
 import ClientTour from '../components/ClientTour';
 import FreelancerBrowser from '../components/FreelancerBrowser';
+import PushNotificationDebug from '../components/PushNotificationDebug';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -44,7 +45,8 @@ const ClientDashboard = () => {
     { id: 'projects', name: 'My Projects', icon: BriefcaseIcon },
     { id: 'freelancers', name: 'Browse Freelancers', icon: UserGroupIcon },
     { id: 'applications', name: 'Applications', icon: UserIcon },
-    { id: 'chats', name: 'Messages', icon: ChatBubbleLeftIcon }
+    { id: 'chats', name: 'Messages', icon: ChatBubbleLeftIcon },
+    { id: 'debug', name: 'Push Debug', icon: CurrencyDollarIcon }
   ];
 
   const fetchMyProjects = useCallback(async () => {
@@ -89,7 +91,7 @@ const ClientDashboard = () => {
   // Handle tab from URL parameters
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['projects', 'freelancers', 'applications', 'chats'].includes(tabFromUrl)) {
+    if (tabFromUrl && ['projects', 'freelancers', 'applications', 'chats', 'debug'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [searchParams]);
@@ -352,6 +354,8 @@ const ClientDashboard = () => {
         return renderApplications();
       case 'chats':
         return renderChats();
+      case 'debug':
+        return <PushNotificationDebug />;
       default:
         return renderProjects();
     }

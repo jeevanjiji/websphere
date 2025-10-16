@@ -603,6 +603,9 @@ router.post('/:workspaceId/deliverables',
       const files = req.files;
 
       console.log('🔥 SUBMIT DELIVERABLE - Workspace:', workspaceId);
+      console.log('📋 Request body:', { title, description, type, milestone, submissionNotes });
+      console.log('📁 Files:', files ? files.length : 0);
+      console.log('👤 User:', req.user);
 
       const deliverable = new Deliverable({
         workspace: workspaceId,
@@ -647,6 +650,22 @@ router.post('/:workspaceId/deliverables',
 
       await deliverable.populate('submittedBy', 'fullName profilePicture email');
       await deliverable.populate('milestone', 'title order');
+
+      // If this deliverable is linked to a milestone, update escrow status
+      if (deliverable.milestone) {
+        try {
+          const EscrowService = require('../services/escrowService');
+          await EscrowService.submitDeliverable(deliverable.milestone._id, req.user.userId, {
+            deliverableId: deliverable._id,
+            notes: submissionNotes,
+            attachments: deliverable.content.files || []
+          });
+          console.log('✅ Escrow updated for deliverable submission');
+        } catch (escrowError) {
+          console.warn('⚠️ Escrow update failed (non-critical):', escrowError.message);
+          // Don't fail the deliverable submission if escrow update fails
+        }
+      }
 
       console.log('✅ Deliverable submitted successfully');
       res.status(201).json({
@@ -710,8 +729,37 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
         $inc: { 'stats.approvedDeliverables': 1 },
         lastActivity: new Date()
       });
+
+      // Update escrow when deliverable is approved by client
+      if (deliverable.milestone) {
+        try {
+          const EscrowService = require('../services/escrowService');
+          await EscrowService.approveDeliverable(deliverable.milestone._id, req.user.userId, {
+            approved: true,
+            notes: reviewNotes
+          });
+          console.log('✅ Escrow updated for deliverable approval');
+        } catch (escrowError) {
+          console.warn('⚠️ Escrow approval update failed (non-critical):', escrowError.message);
+          // Don't fail the deliverable approval if escrow update fails
+        }
+      }
     } else if (status === 'revision-requested') {
       deliverable.revisionCount += 1;
+      
+      // Update escrow when deliverable is rejected/revision requested
+      if (deliverable.milestone) {
+        try {
+          const EscrowService = require('../services/escrowService');
+          await EscrowService.approveDeliverable(deliverable.milestone._id, req.user.userId, {
+            approved: false,
+            notes: reviewNotes
+          });
+          console.log('✅ Escrow updated for deliverable rejection');
+        } catch (escrowError) {
+          console.warn('⚠️ Escrow rejection update failed (non-critical):', escrowError.message);
+        }
+      }
     }
 
     await deliverable.save();
@@ -734,17 +782,16 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
   }
 });
 
-// GET /api/workspaces/:workspaceId/payments - Get payment history for workspace
+// GET /api/workspaces/:workspaceId/payments - Get comprehensive payment history for workspace
 router.get('/:workspaceId/payments', auth(['client', 'freelancer']), checkWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId } = req.params;
 
-    console.log('🔍 Fetching payments for workspace:', workspaceId);
+    console.log('🔍 Fetching comprehensive payments for workspace:', workspaceId);
 
     // Get all milestones for this workspace with payment information
     const milestones = await Milestone.find({ 
-      workspace: workspaceId,
-      paymentStatus: { $in: ['completed', 'processing'] }
+      workspace: workspaceId
     })
     .populate('workspace', 'project')
     .populate({
@@ -754,34 +801,144 @@ router.get('/:workspaceId/payments', auth(['client', 'freelancer']), checkWorksp
         select: 'title'
       }
     })
-    .sort({ paidDate: -1, createdAt: -1 });
+    .sort({ createdAt: -1 });
 
-    // Transform milestones into payment records
-    const payments = milestones.map(milestone => ({
-      _id: milestone._id,
-      milestone: {
+    // Get escrow information for all milestones
+    const Escrow = require('../models/Escrow');
+    const escrows = await Escrow.find({
+      milestone: { $in: milestones.map(m => m._id) }
+    })
+    .populate('releasedBy', 'fullName')
+    .populate('clientApprovedBy', 'fullName');
+
+    // Create escrow lookup map
+    const escrowMap = {};
+    escrows.forEach(escrow => {
+      escrowMap[escrow.milestone.toString()] = escrow;
+    });
+
+    // Transform milestones into comprehensive payment records
+    const payments = milestones.map(milestone => {
+      const escrow = escrowMap[milestone._id.toString()];
+      
+      // Determine overall payment status
+      let paymentStatus = 'pending';
+      let statusDetails = 'Milestone created, payment pending';
+      
+      if (escrow) {
+        switch (escrow.status) {
+          case 'pending':
+            paymentStatus = 'payment_pending';
+            statusDetails = 'Waiting for client payment';
+            break;
+          case 'active':
+            if (escrow.deliverableSubmitted) {
+              if (escrow.clientApprovalStatus === 'approved') {
+                paymentStatus = 'approved_pending_release';
+                statusDetails = 'Approved by client, awaiting admin release';
+              } else if (escrow.clientApprovalStatus === 'rejected') {
+                paymentStatus = 'rejected';
+                statusDetails = 'Rejected by client, needs revision';
+              } else {
+                paymentStatus = 'awaiting_approval';
+                statusDetails = 'Deliverable submitted, awaiting client approval';
+              }
+            } else {
+              paymentStatus = 'paid_awaiting_delivery';
+              statusDetails = 'Client paid, awaiting deliverable submission';
+            }
+            break;
+          case 'released':
+            paymentStatus = 'completed';
+            statusDetails = 'Funds released to freelancer';
+            break;
+          case 'disputed':
+            paymentStatus = 'disputed';
+            statusDetails = 'Payment disputed, under resolution';
+            break;
+          case 'refunded':
+            paymentStatus = 'refunded';
+            statusDetails = 'Payment refunded to client';
+            break;
+        }
+      }
+
+      return {
         _id: milestone._id,
-        title: milestone.title,
-        description: milestone.description
-      },
-      amount: milestone.amount,
-      currency: milestone.currency || 'INR',
-      status: milestone.paymentStatus,
-      paymentMethod: milestone.paymentDetails?.method || 'Razorpay',
-      razorpay_payment_id: milestone.paymentDetails?.razorpay_payment_id,
-      paidAt: milestone.paidDate || milestone.paymentDetails?.paidAt,
-      createdAt: milestone.createdAt,
-      project: milestone.workspace?.project
-    }));
+        milestone: {
+          _id: milestone._id,
+          title: milestone.title,
+          description: milestone.description,
+          amount: milestone.amount,
+          currency: milestone.currency || 'INR'
+        },
+        
+        // Payment Timeline
+        timeline: {
+          milestoneCreated: milestone.createdAt,
+          clientPaidAt: escrow?.activatedAt || null,
+          deliverableSubmittedAt: escrow?.deliverableSubmittedAt || null,
+          clientApprovedAt: escrow?.clientApprovedAt || null,
+          fundsReleasedAt: escrow?.releasedAt || null
+        },
 
-    console.log('✅ Found payments:', payments.length);
+        // Payment Status
+        status: paymentStatus,
+        statusDetails: statusDetails,
+
+        // Financial Details
+        financial: {
+          milestoneAmount: escrow?.milestoneAmount || milestone.amount,
+          serviceCharge: escrow?.serviceCharge || 0,
+          totalPaidByClient: escrow?.totalAmount || 0,
+          amountToFreelancer: escrow?.amountToFreelancer || milestone.amount,
+          currency: milestone.currency || 'INR'
+        },
+
+        // Escrow Details
+        escrow: escrow ? {
+          _id: escrow._id,
+          status: escrow.status,
+          deliverableSubmitted: escrow.deliverableSubmitted,
+          clientApprovalStatus: escrow.clientApprovalStatus,
+          paymentId: escrow.paymentId,
+          razorpayOrderId: escrow.razorpayOrderId,
+          razorpayPaymentId: escrow.razorpayPaymentId,
+          
+          // Release Information
+          releasedBy: escrow.releasedBy ? {
+            _id: escrow.releasedBy._id,
+            fullName: escrow.releasedBy.fullName
+          } : null,
+          releaseReason: escrow.releaseReason,
+          releaseNotes: escrow.releaseNotes
+        } : null,
+
+        // Legacy fields for backward compatibility
+        amount: milestone.amount,
+        paymentMethod: milestone.paymentDetails?.method || 'Razorpay',
+        razorpay_payment_id: escrow?.razorpayPaymentId || milestone.paymentDetails?.razorpay_payment_id,
+        paidAt: escrow?.activatedAt || milestone.paidDate,
+        createdAt: milestone.createdAt,
+        project: milestone.workspace?.project
+      };
+    });
+
+    console.log('✅ Found comprehensive payments:', payments.length);
 
     res.json({
       success: true,
-      data: payments
+      data: payments,
+      summary: {
+        total: payments.length,
+        pending: payments.filter(p => p.status === 'pending' || p.status === 'payment_pending').length,
+        paid: payments.filter(p => p.status.includes('paid') || p.status.includes('awaiting') || p.status.includes('approved')).length,
+        completed: payments.filter(p => p.status === 'completed').length,
+        disputed: payments.filter(p => p.status === 'disputed').length
+      }
     });
   } catch (error) {
-    console.error('❌ Error fetching payments:', error);
+    console.error('❌ Error fetching comprehensive payments:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch payments',

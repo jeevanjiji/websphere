@@ -15,7 +15,8 @@ import {
   CreditCardIcon,
   EyeIcon,
   VideoCameraIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 
@@ -47,6 +48,17 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const [skipNextMilestoneFetch, setSkipNextMilestoneFetch] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showFileViewer, setShowFileViewer] = useState(false);
+  
+  // Deliverable Review States
+  const [showDeliverableReview, setShowDeliverableReview] = useState(false);
+  const [selectedDeliverable, setSelectedDeliverable] = useState(null);
+  const [reviewAction, setReviewAction] = useState(''); // 'approve' or 'decline'
+  const [deliverableReviewNotes, setDeliverableReviewNotes] = useState('');
+  const [processingReview, setProcessingReview] = useState(false);
+  
+  // Chat Integration States
+  const [showDeliverableChat, setShowDeliverableChatModal] = useState(false);
+  const [deliverableForChat, setDeliverableForChat] = useState(null);
 
   // Payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -529,7 +541,18 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       const formData = new FormData();
       formData.append('title', deliverableData.title);
       formData.append('description', deliverableData.description);
-      formData.append('type', deliverableData.type || 'regular');
+      
+      // Determine type based on content
+      let deliverableType = 'other'; // default
+      if (files && files.length > 0) {
+        deliverableType = 'file';
+      } else if (deliverableData.links && deliverableData.links.length > 0) {
+        deliverableType = 'link';
+      } else if (deliverableData.textContent) {
+        deliverableType = 'text';
+      }
+      
+      formData.append('type', deliverableType);
       if (deliverableData.milestoneId) {
         formData.append('milestone', deliverableData.milestoneId);
       }
@@ -575,6 +598,121 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const closeFileViewer = () => {
     setSelectedFile(null);
     setShowFileViewer(false);
+  };
+
+  // Deliverable Review Functions
+  const openDeliverableReview = (deliverable, action) => {
+    setSelectedDeliverable(deliverable);
+    setReviewAction(action);
+    setDeliverableReviewNotes('');
+    setShowDeliverableReview(true);
+  };
+
+  const closeDeliverableReview = () => {
+    setShowDeliverableReview(false);
+    setSelectedDeliverable(null);
+    setReviewAction('');
+    setDeliverableReviewNotes('');
+  };
+
+  const submitDeliverableReview = async () => {
+    if (!selectedDeliverable || !reviewAction) return;
+    
+    try {
+      setProcessingReview(true);
+      const token = localStorage.getItem('token');
+      
+      const reviewData = {
+        status: reviewAction === 'approve' ? 'approved' : 'rejected',
+        reviewNotes: deliverableReviewNotes,
+        rating: reviewAction === 'approve' ? 5 : null // Default good rating for approved deliverables
+      };
+      
+      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/deliverables/${selectedDeliverable._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reviewData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Deliverable ${reviewAction === 'approve' ? 'approved' : 'declined'} successfully!`);
+        
+        // Refresh deliverables list
+        await fetchDeliverables(workspace._id);
+        closeDeliverableReview();
+        
+        // If approved, also refresh milestones to show updated escrow status
+        if (reviewAction === 'approve') {
+          await fetchMilestones(workspace._id);
+        }
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || `Failed to ${reviewAction} deliverable`);
+      }
+    } catch (error) {
+      console.error(`❌ Error ${reviewAction}ing deliverable:`, error);
+      toast.error(`Failed to ${reviewAction} deliverable: ${error.message}`);
+    } finally {
+      setProcessingReview(false);
+    }
+  };
+
+  // Chat Integration Functions
+  const openDeliverableChat = (deliverable) => {
+    setDeliverableForChat(deliverable);
+    setShowDeliverableChatModal(true);
+  };
+
+  const closeDeliverableChat = () => {
+    setShowDeliverableChatModal(false);
+    setDeliverableForChat(null);
+  };
+
+  const sendDeliverableChatMessage = async (message) => {
+    if (!deliverableForChat || !message.trim()) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Send message with deliverable context
+      const messageData = {
+        content: message,
+        type: 'text',
+        deliverableContext: {
+          deliverableId: deliverableForChat._id,
+          title: deliverableForChat.title,
+          description: deliverableForChat.description,
+          files: deliverableForChat.files || []
+        }
+      };
+      
+      const response = await fetch(`http://localhost:5000/api/chats/${workspace.chat}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(messageData)
+      });
+
+      if (response.ok) {
+        toast.success('Comment sent to chat!');
+        closeDeliverableChat();
+        
+        // Switch to chat tab to show the message
+        setActiveTab('chat');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to send comment');
+      }
+    } catch (error) {
+      console.error('❌ Error sending deliverable comment:', error);
+      toast.error('Failed to send comment: ' + error.message);
+    }
   };
 
 
@@ -1171,13 +1309,51 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             </div>
                           )}
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          deliverable.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          deliverable.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {deliverable.status || 'Pending'}
-                        </span>
+                        <div className="flex flex-col items-end space-y-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            deliverable.status === 'approved' ? 'bg-green-100 text-green-800' :
+                            deliverable.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {deliverable.status || 'Pending Review'}
+                          </span>
+                          
+                          {/* Client Review Actions */}
+                          {!isFreelancer && (deliverable.status === 'pending' || deliverable.status === 'submitted' || !deliverable.status) && (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => openDeliverableReview(deliverable, 'approve')}
+                                className="px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => openDeliverableReview(deliverable, 'decline')}
+                                className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors"
+                              >
+                                ✗ Decline
+                              </button>
+                              <button
+                                onClick={() => openDeliverableChat(deliverable)}
+                                className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                              >
+                                💬 Comment
+                              </button>
+                            </div>
+                          )}
+                          
+                          {/* Review Status Info */}
+                          {deliverable.reviewDate && (
+                            <div className="text-xs text-gray-500 text-right">
+                              <div>Reviewed: {new Date(deliverable.reviewDate).toLocaleDateString()}</div>
+                              {deliverable.reviewNotes && (
+                                <div className="mt-1 max-w-48 text-right">
+                                  "{deliverable.reviewNotes}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1304,8 +1480,15 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   {payments.map((payment, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-semibold text-lg">₹{payment.amount}</h4>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-semibold text-lg">₹{payment.amount}</h4>
+                            {payment.milestone?.escrowStatus === 'active' && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                🔒 Held in Escrow
+                              </span>
+                            )}
+                          </div>
                           <p className="text-gray-600 text-sm mt-1">
                             {payment.milestone?.title || 'Payment'}
                           </p>
@@ -1313,14 +1496,30 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             <span>Date: {new Date(payment.paidAt || payment.createdAt).toLocaleDateString()}</span>
                             <span>Method: {payment.paymentMethod || 'Razorpay'}</span>
                           </div>
+                          {payment.milestone?.escrowStatus === 'active' && (
+                            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                              <div className="flex items-center text-sm text-blue-800">
+                                <span className="text-blue-600 mr-2">🔒</span>
+                                <div>
+                                  <p className="font-medium">Funds held in escrow</p>
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    Payment will be released after work delivery is approved by admin
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          payment.status === 'completed' && payment.milestone?.escrowStatus === 'active' 
+                            ? 'bg-blue-100 text-blue-800' :
                           payment.status === 'completed' ? 'bg-green-100 text-green-800' :
                           payment.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
                           payment.status === 'pending' ? 'bg-orange-100 text-orange-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {payment.status || 'Pending'}
+                          {payment.milestone?.escrowStatus === 'active' ? 'In Escrow' : 
+                           payment.status || 'Pending'}
                         </span>
                       </div>
                     </div>
@@ -1499,6 +1698,149 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
           }}
           onPaymentSuccess={handlePaymentSuccess}
         />
+      )}
+
+      {/* Deliverable Review Modal */}
+      {showDeliverableReview && selectedDeliverable && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-xl font-semibold">
+                  {reviewAction === 'approve' ? 'Approve' : 'Decline'} Deliverable
+                </h2>
+                <button 
+                  onClick={closeDeliverableReview}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Deliverable Preview */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-medium text-lg mb-2">{selectedDeliverable.title}</h3>
+                <p className="text-gray-600 text-sm mb-3">{selectedDeliverable.description}</p>
+                
+                {/* Files Preview */}
+                {selectedDeliverable.files && selectedDeliverable.files.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Attached Files:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedDeliverable.files.map((file, index) => (
+                        <div key={index} className="flex items-center space-x-1">
+                          <button
+                            onClick={() => handleFileView(file)}
+                            className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm"
+                          >
+                            <EyeIcon className="w-4 h-4 mr-1" />
+                            {file.filename || `File ${index + 1}`}
+                          </button>
+                          <a
+                            href={`http://localhost:5000${file.url}`}
+                            download={file.originalName || file.filename}
+                            className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-sm"
+                            title="Download file"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Submission Info */}
+                <div className="mt-3 text-xs text-gray-500">
+                  <div>Submitted: {new Date(selectedDeliverable.submissionDate).toLocaleString()}</div>
+                  {selectedDeliverable.submissionNotes && (
+                    <div className="mt-1">
+                      <strong>Notes:</strong> {selectedDeliverable.submissionNotes}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Review Form */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {reviewAction === 'approve' ? 'Approval Comments' : 'Reason for Decline'} (Optional)
+                </label>
+                <textarea
+                  value={deliverableReviewNotes}
+                  onChange={(e) => setDeliverableReviewNotes(e.target.value)}
+                  className="w-full h-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={
+                    reviewAction === 'approve' 
+                      ? "Great work! The deliverable meets all requirements..."
+                      : "Please revise the following items..."
+                  }
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={closeDeliverableReview}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={processingReview}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitDeliverableReview}
+                  className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
+                    reviewAction === 'approve' 
+                      ? 'bg-green-600 hover:bg-green-700' 
+                      : 'bg-red-600 hover:bg-red-700'
+                  } disabled:opacity-50`}
+                  disabled={processingReview}
+                >
+                  {processingReview ? 'Processing...' : (reviewAction === 'approve' ? 'Approve Deliverable' : 'Decline Deliverable')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deliverable Chat Integration Modal */}
+      {showDeliverableChat && deliverableForChat && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-xl font-semibold">Comment on Deliverable</h2>
+                <button 
+                  onClick={closeDeliverableChat}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Deliverable Context (WhatsApp-style) */}
+              <div className="mb-4 p-3 bg-gray-100 border-l-4 border-blue-500 rounded-lg opacity-75">
+                <div className="text-sm text-gray-600 mb-1">💼 Deliverable</div>
+                <div className="font-medium text-sm">{deliverableForChat.title}</div>
+                <div className="text-xs text-gray-500 mt-1">{deliverableForChat.description}</div>
+                {deliverableForChat.files && deliverableForChat.files.length > 0 && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    📎 {deliverableForChat.files.length} file(s) attached
+                  </div>
+                )}
+              </div>
+
+              {/* Comment Form */}
+              <DeliverableChatForm 
+                onSendMessage={sendDeliverableChatMessage}
+                onCancel={closeDeliverableChat}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1761,6 +2103,62 @@ const DeliverableForm = ({ milestones, onSubmit, onClose, submitting }) => {
         </form>
       </div>
     </div>
+  );
+};
+
+// Helper component for deliverable chat form
+const DeliverableChatForm = ({ onSendMessage, onCancel }) => {
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!message.trim()) return;
+    
+    setSending(true);
+    try {
+      await onSendMessage(message);
+      setMessage('');
+    } catch (error) {
+      // Error handling is done in parent component
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Your Comment
+        </label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="w-full h-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Add your comments about this deliverable..."
+          required
+        />
+      </div>
+      
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          disabled={sending}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          disabled={sending || !message.trim()}
+        >
+          {sending ? 'Sending...' : '💬 Send to Chat'}
+        </button>
+      </div>
+    </form>
   );
 };
 

@@ -113,13 +113,37 @@ class PushNotificationService {
         throw new Error('VAPID public key not configured on server');
       }
 
-      // Subscribe to push notifications
-      this.subscription = await this.registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(data.publicKey)
-      });
+      console.log('🔑 Using VAPID public key:', data.publicKey);
 
-      console.log('✅ Push subscription created:', this.subscription);
+      // Check if push manager supports subscriptions
+      if (!this.registration.pushManager) {
+        throw new Error('Push messaging is not supported');
+      }
+
+      // Check for existing subscription first
+      let existingSubscription = await this.registration.pushManager.getSubscription();
+      if (existingSubscription) {
+        console.log('📱 Found existing subscription, using it');
+        this.subscription = existingSubscription;
+      } else {
+        // Subscribe to push notifications with error handling
+        try {
+          this.subscription = await this.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: this.urlBase64ToUint8Array(data.publicKey)
+          });
+          console.log('✅ Push subscription created:', this.subscription);
+        } catch (subscribeError) {
+          if (subscribeError.name === 'AbortError') {
+            console.error('❌ Push subscription aborted - likely VAPID key or browser issue');
+            throw new Error('SUBSCRIPTION_FAILED: ' + subscribeError.message);
+          } else if (subscribeError.name === 'NotSupportedError') {
+            throw new Error('PUSH_NOT_SUPPORTED');
+          } else {
+            throw subscribeError;
+          }
+        }
+      }
 
       // Send subscription to server
       const token = localStorage.getItem('token');
@@ -138,6 +162,16 @@ class PushNotificationService {
 
     } catch (error) {
       console.error('❌ Failed to subscribe to push notifications:', error);
+      
+      // Provide user-friendly error messages
+      if (error.message.includes('SUBSCRIPTION_FAILED')) {
+        throw new Error('Push notifications are not available in your browser or network environment. This is common in development mode.');
+      } else if (error.message === 'PUSH_NOT_SUPPORTED') {
+        throw new Error('Your browser does not support push notifications.');
+      } else if (error.message === 'PERMISSION_BLOCKED') {
+        throw new Error('Push notifications are blocked. Please enable them in your browser settings.');
+      }
+      
       throw error;
     }
   }

@@ -97,6 +97,12 @@ router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAcce
       calculatedPaymentDueDate = deliveryDate;
     }
 
+    // Calculate service charges
+    const serviceChargePercentage = req.body.serviceChargePercentage || 5; // 5% default
+    const serviceCharge = 35; // Fixed ₹35 per milestone
+    const totalAmountPaid = amount + serviceCharge;
+    const amountToFreelancer = amount;
+
     const milestone = new Milestone({
       workspace: workspaceId,
       title,
@@ -111,7 +117,13 @@ router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAcce
       order,
       createdBy: req.user.userId || req.user.id,
       paymentStatus: 'pending',
-      deliveryStatus: 'on-time'
+      deliveryStatus: 'on-time',
+      // Escrow and service charge fields
+      escrowStatus: 'none',
+      serviceCharge,
+      serviceChargePercentage,
+      totalAmountPaid,
+      amountToFreelancer
     });
 
     await milestone.save();

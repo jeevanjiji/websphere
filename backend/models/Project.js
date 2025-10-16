@@ -104,6 +104,23 @@ const projectSchema = new mongoose.Schema(
       type: Date
     },
     
+    // Service charges and platform fees
+    serviceCharge: {
+      type: Number,
+      default: 500, // Default service charge in INR
+      min: 0
+    },
+    serviceChargePercentage: {
+      type: Number,
+      default: 5, // 5% platform fee
+      min: 0,
+      max: 20
+    },
+    totalProjectValue: { // Total value including service charges
+      type: Number,
+      min: 0
+    },
+    
     // Optional future fields:
     // priority: {
     //   type: String,

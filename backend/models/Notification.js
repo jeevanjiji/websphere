@@ -15,7 +15,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['payment-reminder', 'deliverable-reminder', 'payment-overdue', 'deliverable-overdue', 'message', 'project', 'milestone', 'system'],
+    enum: ['payment-reminder', 'deliverable-reminder', 'payment-overdue', 'deliverable-overdue', 'payment', 'message', 'project', 'milestone', 'system'],
     required: true,
     index: true
   },

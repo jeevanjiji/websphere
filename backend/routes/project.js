@@ -183,6 +183,12 @@ router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) =>
       }
     }
 
+    // Calculate service charges
+    const serviceChargePercentage = 5; // 5% platform fee
+    const fixedServiceCharge = 35; // ₹35 per milestone service charge
+    const calculatedServiceCharge = Math.max(fixedServiceCharge, (budgetAmount * serviceChargePercentage) / 100);
+    const totalProjectValue = budgetAmount + calculatedServiceCharge;
+
     const project = await Project.create({
       client: req.user.userId,
       title,
@@ -194,11 +200,61 @@ router.post('/', auth(['client']), uploadProjectAttachments, async (req, res) =>
       budgetType,
       budgetAmount,
       deadline,
-      attachments: attachmentUrls
+      attachments: attachmentUrls,
+      // Service charge fields
+      serviceCharge: fixedServiceCharge, // Use fixed charge per milestone
+      serviceChargePercentage,
+      totalProjectValue
     });
 
     console.log('✅ Project created:', project._id);
     console.log('📂 Project category:', category, categoryName);
+
+    // 🎯 AI MATCHING INTEGRATION: Trigger proactive matching for new project
+    try {
+      const MatchingService = require('../services/matchingService');
+      
+      // Find top matches immediately (async, don't wait)
+      MatchingService.getRecommendedFreelancers(project._id, {
+        limit: 10,
+        minScore: 0.6
+      }).then(async (matches) => {
+        if (matches.matches.length > 0) {
+          console.log(`🎯 Found ${matches.matches.length} matching freelancers for new project: ${project.title}`);
+          
+          // Send notifications to top 5 matches (you can adjust this)
+          const NotificationService = require('../services/notificationService');
+          const topMatches = matches.matches.slice(0, 5);
+          
+          for (const match of topMatches) {
+            try {
+              await NotificationService.createNotification(
+                match.freelancer._id,
+                'project_match',
+                '🎯 Perfect Project Match!',
+                `"${project.title}" is a ${Math.round(match.totalScore * 100)}% match for your skills`,
+                {
+                  projectId: project._id,
+                  matchScore: match.totalScore,
+                  projectTitle: project.title,
+                  budget: project.budgetAmount,
+                  budgetType: project.budgetType
+                }
+              );
+            } catch (notifError) {
+              console.error('❌ Notification error:', notifError.message);
+            }
+          }
+          console.log(`📧 Sent match notifications to ${topMatches.length} freelancers`);
+        }
+      }).catch(err => {
+        console.error('❌ AI matching error (non-blocking):', err.message);
+      });
+    } catch (error) {
+      // Don't let matching errors break project creation
+      console.error('❌ AI matching service unavailable (non-blocking):', error.message);
+    }
+
     res.status(201).json({ success: true, project });
   } catch (err) {
     console.error('❌ Create project error:', err);

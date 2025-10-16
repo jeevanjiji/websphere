@@ -175,11 +175,36 @@ const milestoneSchema = new mongoose.Schema({
   // Escrow fields (for advanced payment protection)
   escrowStatus: {
     type: String,
-    enum: ['none', 'active', 'released', 'disputed'],
+    enum: ['none', 'pending', 'active', 'released', 'disputed', 'refunded'],
     default: 'none'
   },
   escrowCreatedAt: { type: Date },
   escrowReleasedAt: { type: Date },
+  escrowReleasedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' // Admin who released the funds
+  },
+  
+  // Service charges and platform fees
+  serviceCharge: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  serviceChargePercentage: {
+    type: Number,
+    default: 5, // 5% platform fee
+    min: 0,
+    max: 20
+  },
+  totalAmountPaid: { // Total amount paid by client (including service charge)
+    type: Number,
+    min: 0
+  },
+  amountToFreelancer: { // Amount that goes to freelancer (after deducting service charge)
+    type: Number,
+    min: 0
+  },
   
   // Progress tracking
   progressNotes: { type: String, maxlength: 1000 },

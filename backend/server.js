@@ -16,6 +16,7 @@ const MongoStore = require('connect-mongo');
 const http      = require('http');
 const socketIo  = require('socket.io');
 const JobScheduler = require('./jobs/scheduler');
+const EscrowScheduler = require('./jobs/escrowScheduler');
 
 const app  = express();
 const server = http.createServer(app);
@@ -89,6 +90,9 @@ const connectDB = async (retries = 5) => {
     
     // Initialize job scheduler for due date notifications
     JobScheduler.init();
+    
+    // Initialize escrow scheduler for automatic fund releases
+    EscrowScheduler.start();
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err.message);
     if (retries > 0) {
@@ -221,6 +225,15 @@ try {
   console.log('✅ Notifications router connected → /api/notifications');
 } catch (err) {
   console.error('❌ Failed to load notifications router:', err.message);
+}
+
+// Matching router (AI-powered freelancer-project matching)
+try {
+  const matchingRouter = require('./routes/matching');
+  app.use('/api/matching', matchingRouter);
+  console.log('✅ Matching router connected → /api/matching');
+} catch (err) {
+  console.error('❌ Failed to load matching router:', err.message);
 }
 
 /* ──────────────────────────────────────────
@@ -767,12 +780,22 @@ app.get('/api/users/online', (req, res) => {
 /* ──────────────────────────────────────────
    Start Server
 ────────────────────────────────────────── */
+// Initialize matching notification jobs before server start
+try {
+  const MatchingNotificationJob = require('./jobs/matchingNotifications');
+  MatchingNotificationJob.init();
+  console.log('🎯 Matching notification jobs initialized');
+} catch (err) {
+  console.error('❌ Failed to initialize matching jobs:', err.message);
+}
+
 server.listen(PORT, () => {
   console.log('🚀 WebSphere Server Started');
   console.log(`📍 Port: ${PORT}`);
   console.log(`🔗 Test URL:  http://localhost:${PORT}/test`);
   console.log(`🔑 Auth URL:  http://localhost:${PORT}/api/auth/`);
   console.log(`📂 Uploads:   http://localhost:${PORT}/uploads/`);
+  console.log(`🤖 AI Matching: http://localhost:${PORT}/api/matching/health`);
   console.log(`📅 Started at: ${new Date().toISOString()}`);
   
   // Log available routes

@@ -3,6 +3,8 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Milestone = require('../models/Milestone');
 const User = require('../models/User');
+const Escrow = require('../models/Escrow');
+const EscrowService = require('./escrowService');
 const { sendEmail } = require('../utils/brevoEmailService');
 
 // Initialize Razorpay (You'll need to add these to your environment variables)
@@ -12,94 +14,50 @@ const razorpay = new Razorpay({
 });
 
 class PaymentService {
-  // Create a payment order for milestone
+  // Create a payment order for milestone (Legacy method - redirects to escrow)
   static async createMilestonePayment(milestoneId, clientId) {
     try {
-      console.log('🔍 PaymentService: Starting createMilestonePayment');
-      console.log('🔍 PaymentService: milestoneId:', milestoneId);
-      console.log('🔍 PaymentService: clientId:', clientId);
+      console.log('� PaymentService: Redirecting to EscrowService for milestone payment');
       
-      const milestone = await Milestone.findById(milestoneId)
-        .populate('workspace')
-        .populate({
-          path: 'workspace',
-          populate: {
-            path: 'client freelancer',
-            select: 'fullName email'
-          }
-        });
-        
-      console.log('🔍 PaymentService: Found milestone:', milestone ? 'YES' : 'NO');
-
-      if (!milestone) {
-        console.log('❌ PaymentService: Milestone not found');
-        throw new Error('Milestone not found');
-      }
+      // For new payments, use escrow system
+      const result = await EscrowService.createEscrowPayment(milestoneId, clientId);
       
-      console.log('🔍 PaymentService: Milestone workspace:', milestone.workspace ? 'EXISTS' : 'NULL');
-      console.log('🔍 PaymentService: Milestone workspace client:', milestone.workspace?.client?._id);
-      console.log('🔍 PaymentService: Provided clientId:', clientId);
-
-      if (milestone.workspace.client._id.toString() !== clientId) {
-        console.log('❌ PaymentService: Client ID mismatch');
-        throw new Error('Unauthorized: Only the client can initiate payment');
-      }
-
-      // Check if milestone is ready for payment (approved OR payment due date has arrived)
-      const now = new Date();
-      const paymentDueDate = milestone.paymentDueDate ? new Date(milestone.paymentDueDate) : null;
-      const isPaymentDue = paymentDueDate && now >= paymentDueDate;
-      
-      if (milestone.status !== 'approved' && !isPaymentDue) {
-        throw new Error('Milestone must be approved or payment due date must have arrived');
-      }
-
-      if (milestone.paymentStatus === 'completed') {
-        throw new Error('Milestone is already paid');
-      }
-
-      // Create Razorpay order with UPI support
-      const order = await razorpay.orders.create({
-        amount: Math.round(milestone.amount * 100), // Convert to paise
-        currency: milestone.currency || 'INR',
-        receipt: `milestone_${milestone._id}_${Date.now()}`,
-        // Enable all payment methods
-        method: 'upi,card,netbanking,wallet,emi,paylater',
-        notes: {
-          milestone_id: milestone._id.toString(),
-          workspace_id: milestone.workspace._id.toString(),
-          client_id: clientId,
-          freelancer_id: milestone.workspace.freelancer._id.toString()
-        }
-      });
-
-      // Update milestone with payment details
-      milestone.paymentStatus = 'processing';
-      milestone.paymentId = order.id;
-      await milestone.save();
-
-      return {
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        milestone: {
-          id: milestone._id,
-          title: milestone.title,
-          amount: milestone.amount
-        },
-        freelancer: {
-          name: milestone.workspace.freelancer.fullName,
-          email: milestone.workspace.freelancer.email
-        }
-      };
+      return result;
     } catch (error) {
-      console.error('❌ Error creating milestone payment:', error);
+      console.error('❌ Error in createMilestonePayment:', error);
       throw error;
     }
   }
 
-  // Verify payment signature and complete payment
+  // Create escrow payment order (New method)
+  static async createEscrowPayment(milestoneId, clientId) {
+    return await EscrowService.createEscrowPayment(milestoneId, clientId);
+  }
+
+  // Verify payment signature and complete payment (Legacy - redirects to escrow)
   static async verifyAndCompletePayment(paymentData) {
+    try {
+      console.log('🔄 PaymentService: Redirecting to EscrowService for payment verification');
+      
+      // Check if this is an escrow payment
+      const { milestone_id } = paymentData;
+      const escrow = await Escrow.findOne({ milestone: milestone_id });
+      
+      if (escrow) {
+        // Use escrow verification
+        return await EscrowService.verifyAndActivateEscrow(paymentData);
+      } else {
+        // Legacy direct payment (for backwards compatibility)
+        return await this.legacyVerifyAndCompletePayment(paymentData);
+      }
+    } catch (error) {
+      console.error('❌ Error in verifyAndCompletePayment:', error);
+      throw error;
+    }
+  }
+
+  // Legacy payment verification (for backwards compatibility)
+  static async legacyVerifyAndCompletePayment(paymentData) {
     try {
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature, milestone_id } = paymentData;
 
@@ -171,9 +129,14 @@ class PaymentService {
         }
       };
     } catch (error) {
-      console.error('❌ Error verifying payment:', error);
+      console.error('❌ Error verifying legacy payment:', error);
       throw error;
     }
+  }
+
+  // Verify escrow payment
+  static async verifyEscrowPayment(paymentData) {
+    return await EscrowService.verifyAndActivateEscrow(paymentData);
   }
 
   // Send payment notifications
@@ -264,46 +227,44 @@ class PaymentService {
     }
   }
 
-  // Create milestone escrow (for advanced payment protection)
+  // Create milestone escrow (redirects to EscrowService)
   static async createEscrow(milestoneId, clientId) {
-    try {
-      // This would integrate with escrow services
-      // For now, we'll simulate escrow by holding funds
-      const milestone = await Milestone.findById(milestoneId);
-      
-      if (!milestone) {
-        throw new Error('Milestone not found');
-      }
-
-      milestone.escrowStatus = 'active';
-      milestone.escrowCreatedAt = new Date();
-      await milestone.save();
-
-      return { escrowId: `escrow_${milestone._id}`, status: 'active' };
-    } catch (error) {
-      console.error('❌ Error creating escrow:', error);
-      throw error;
-    }
+    return await EscrowService.createEscrowPayment(milestoneId, clientId);
   }
 
-  // Release escrow funds
-  static async releaseEscrow(milestoneId) {
-    try {
-      const milestone = await Milestone.findById(milestoneId);
-      
-      if (!milestone || milestone.escrowStatus !== 'active') {
-        throw new Error('Invalid escrow release request');
-      }
+  // Release escrow funds (redirects to EscrowService)
+  static async releaseEscrow(milestoneId, adminId = 'system', releaseReason = '') {
+    return await EscrowService.releaseFunds(milestoneId, adminId, releaseReason);
+  }
 
-      milestone.escrowStatus = 'released';
-      milestone.escrowReleasedAt = new Date();
-      await milestone.save();
+  // Submit deliverable for escrow
+  static async submitDeliverable(milestoneId, freelancerId, submissionData) {
+    return await EscrowService.submitDeliverable(milestoneId, freelancerId, submissionData);
+  }
 
-      return { status: 'released' };
-    } catch (error) {
-      console.error('❌ Error releasing escrow:', error);
-      throw error;
-    }
+  // Approve/reject deliverable
+  static async approveDeliverable(milestoneId, clientId, approvalData) {
+    return await EscrowService.approveDeliverable(milestoneId, clientId, approvalData);
+  }
+
+  // Raise dispute
+  static async raiseDispute(milestoneId, userId, disputeReason) {
+    return await EscrowService.raiseDispute(milestoneId, userId, disputeReason);
+  }
+
+  // Resolve dispute (admin only)
+  static async resolveDispute(milestoneId, adminId, resolutionData) {
+    return await EscrowService.resolveDispute(milestoneId, adminId, resolutionData);
+  }
+
+  // Get escrow details
+  static async getEscrowDetails(milestoneId) {
+    return await EscrowService.getEscrowDetails(milestoneId);
+  }
+
+  // Get escrow history
+  static async getEscrowHistory(workspaceId) {
+    return await EscrowService.getEscrowHistory(workspaceId);
   }
 }
 
