@@ -34,7 +34,7 @@ const applicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
+      enum: ['pending', 'accepted', 'rejected', 'withdrawn', 'awarded'],
       default: 'pending'
     },
     // Additional proposal details

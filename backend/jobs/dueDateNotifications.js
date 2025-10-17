@@ -65,12 +65,19 @@ class DueDateNotificationJob {
 
     if (!freelancer || !project) return;
 
-    // Check if milestone is overdue
-    if (dueDate < now && milestone.status === 'in-progress' && !milestone.overdueNotificationSent) {
-      await this.sendDeliverableOverdueNotification(milestone, freelancer, client, project);
-      milestone.overdueNotificationSent = true;
-      milestone.isOverdue = true;
-      await milestone.save();
+    // Check if milestone is overdue (including approved milestones with no deliverable)
+    if (dueDate < now && (milestone.status === 'in-progress' || milestone.status === 'approved')) {
+      const daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+      
+      // Send daily overdue notifications for critical stages
+      if (daysOverdue >= 1 && (!milestone.lastOverdueNotificationSent || 
+          this.shouldSendDailyOverdueNotification(milestone.lastOverdueNotificationSent, daysOverdue))) {
+        await this.sendDeliverableOverdueNotification(milestone, freelancer, client, project, daysOverdue);
+        milestone.overdueNotificationSent = true;
+        milestone.isOverdue = true;
+        milestone.lastOverdueNotificationSent = new Date();
+        await milestone.save();
+      }
     }
     // Check if due tomorrow
     else if (dueDate < oneDayFromNow && dueDate > now && !milestone.deliverableReminderSent) {
@@ -84,6 +91,26 @@ class DueDateNotificationJob {
       milestone.deliverableReminderSent = true;
       await milestone.save();
     }
+  }
+
+  /**
+   * Determine if we should send a daily overdue notification
+   */
+  static shouldSendDailyOverdueNotification(lastSent, daysOverdue) {
+    if (!lastSent) return true;
+    
+    const hoursSinceLastNotification = (new Date() - lastSent) / (1000 * 60 * 60);
+    
+    // Send notifications based on urgency:
+    // Days 1-3: Once per day (24 hours)
+    // Days 4-7: Twice per day (12 hours)  
+    // Days 8-14: Every 8 hours
+    // Days 15+: Every 6 hours (critical)
+    
+    if (daysOverdue <= 3) return hoursSinceLastNotification >= 24;
+    if (daysOverdue <= 7) return hoursSinceLastNotification >= 12;
+    if (daysOverdue <= 14) return hoursSinceLastNotification >= 8;
+    return hoursSinceLastNotification >= 6; // Critical overdue
   }
 
   /**
@@ -226,13 +253,37 @@ class DueDateNotificationJob {
   }
 
   /**
-   * Send overdue deliverable notification to freelancer
+   * Send overdue deliverable notification to freelancer with escalating urgency
    */
-  static async sendDeliverableOverdueNotification(milestone, freelancer, client, project) {
-    const title = `🚨 Overdue: Deliverable Past Due Date`;
-    const message = `Your deliverable for "${milestone.title}" is now overdue! Please submit immediately or contact the client.`;
+  static async sendDeliverableOverdueNotification(milestone, freelancer, client, project, daysOverdue = 1) {
+    let title, urgencyLevel, emoji;
     
-    console.log(`📧 Sending overdue deliverable notification to ${freelancer.email}`);
+    // Escalate notification urgency based on days overdue
+    if (daysOverdue === 1) {
+      title = '🚨 Deliverable Overdue';
+      urgencyLevel = 'First Day Overdue';
+      emoji = '🚨';
+    } else if (daysOverdue <= 3) {
+      title = `⚠️ Deliverable Still Overdue (${daysOverdue} days)`;
+      urgencyLevel = 'Early Overdue';
+      emoji = '⚠️';
+    } else if (daysOverdue <= 7) {
+      title = `� Critical: Deliverable Overdue (${daysOverdue} days)`;
+      urgencyLevel = 'Critical Overdue';
+      emoji = '🔥';
+    } else if (daysOverdue <= 14) {
+      title = `🚨 Final Notice: Deliverable Overdue (${daysOverdue} days)`;
+      urgencyLevel = 'Final Notice';
+      emoji = '🚨';
+    } else {
+      title = `⏰ Daily Reminder: Deliverable Overdue (${daysOverdue} days)`;
+      urgencyLevel = 'Extended Overdue';
+      emoji = '⏰';
+    }
+
+    const message = `${emoji} Your deliverable for "${milestone.title}" is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue! Please submit immediately or contact the client.`;
+    
+    console.log(`📧 Sending ${urgencyLevel} notification to ${freelancer.email} (${daysOverdue} days overdue)`);
     
     // Save to database for notification center
     await this.saveNotificationToDatabase(
@@ -243,7 +294,9 @@ class DueDateNotificationJob {
       {
         workspaceId: milestone.workspace._id,
         milestoneId: milestone._id,
-        projectId: project._id
+        projectId: project._id,
+        daysOverdue: daysOverdue,
+        urgencyLevel: urgencyLevel
       }
     );
     

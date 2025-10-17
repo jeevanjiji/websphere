@@ -62,6 +62,10 @@ const milestoneSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  lastOverdueNotificationSent: {
+    type: Date,
+    default: null
+  },
   autoExtensionDays: {
     type: Number,
     default: 0, // Auto-extension days granted

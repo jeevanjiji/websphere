@@ -3,6 +3,8 @@ const Application = require('../models/Application');
 const Project = require('../models/Project');
 const User = require('../models/User');
 const { Chat, Message } = require('../models/Chat');
+const Notification = require('../models/Notification');
+const Workspace = require('../models/Workspace');
 const { auth } = require('../middlewares/auth');
 const router = express.Router();
 
@@ -74,6 +76,20 @@ router.post('/', auth(['freelancer']), async (req, res) => {
       });
     }
 
+    // Check if freelancer has 5 or more ongoing projects
+    const ongoingProjectsCount = await Application.countDocuments({
+      freelancer: req.user.userId,
+      status: { $in: ['accepted', 'awarded'] }
+    });
+
+    if (ongoingProjectsCount >= 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot apply to more than 5 projects at once. Please complete some of your current projects before applying to new ones.',
+        ongoingProjectsCount: ongoingProjectsCount
+      });
+    }
+
     // Create application
     const application = new Application({
       project: projectId,
@@ -94,6 +110,30 @@ router.post('/', auth(['freelancer']), async (req, res) => {
       { path: 'freelancer', select: 'fullName profilePicture rating.average email' },
       { path: 'project', select: 'title' }
     ]);
+
+    // Create notification for client about new application
+    try {
+      await Notification.create({
+        userId: project.client._id,
+        userRole: 'client',
+        type: 'project',
+        title: 'New Project Application',
+        body: `${application.freelancer.fullName} has applied to your project "${application.project.title}"`,
+        data: {
+          projectId: project._id,
+          applicationId: application._id,
+          extraData: {
+            freelancerName: application.freelancer.fullName,
+            proposedRate: application.proposedRate,
+            action: 'view_applications'
+          }
+        }
+      });
+      console.log('✅ Notification sent to client about new application');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create notification:', notificationError);
+      // Don't fail the application submission if notification fails
+    }
 
     console.log('✅ Application submitted successfully');
     res.status(201).json({
@@ -309,6 +349,36 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
 
     await application.save();
 
+    // Create notification for freelancer about application status change
+    try {
+      const notificationData = {
+        userId: application.freelancer._id,
+        userRole: 'freelancer',
+        type: 'project',
+        data: {
+          projectId: application.project._id,
+          applicationId: application._id,
+          extraData: {
+            projectTitle: application.project.title,
+            action: action === 'accept' ? 'project_awarded' : 'application_rejected'
+          }
+        }
+      };
+
+      if (action === 'accept') {
+        notificationData.title = 'Project Awarded! 🎉';
+        notificationData.body = `Congratulations! Your application for "${application.project.title}" has been accepted and the project has been awarded to you.`;
+      } else {
+        notificationData.title = 'Application Update';
+        notificationData.body = `Your application for "${application.project.title}" was not selected this time. Keep applying to find the perfect project!`;
+      }
+
+      await Notification.create(notificationData);
+      console.log(`✅ Notification sent to freelancer about application ${action}`);
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create application status notification:', notificationError);
+    }
+
     console.log('✅ Application', action === 'accept' ? 'selected and project awarded' : 'rejected', 'successfully');
     res.json({
       success: true,
@@ -450,6 +520,36 @@ router.put('/:applicationId/status', auth(['client']), async (req, res) => {
     }
 
     await application.save();
+
+    // Create notification for freelancer about application status change
+    try {
+      const notificationData = {
+        userId: application.freelancer._id,
+        userRole: 'freelancer',
+        type: 'project',
+        data: {
+          projectId: application.project._id,
+          applicationId: application._id,
+          extraData: {
+            projectTitle: application.project.title,
+            action: status === 'accepted' ? 'project_awarded' : 'application_rejected'
+          }
+        }
+      };
+
+      if (status === 'accepted') {
+        notificationData.title = 'Project Awarded! 🎉';
+        notificationData.body = `Congratulations! Your application for "${application.project.title}" has been accepted and the project has been awarded to you.`;
+      } else {
+        notificationData.title = 'Application Update';
+        notificationData.body = `Your application for "${application.project.title}" was not selected this time. Keep applying to find the perfect project!`;
+      }
+
+      await Notification.create(notificationData);
+      console.log(`✅ Notification sent to freelancer about application ${status}`);
+    } catch (notificationError) {
+      console.error('⚠️ Failed to create application status notification:', notificationError);
+    }
 
     console.log('✅ Application', status === 'accepted' ? 'selected and project awarded' : 'rejected', 'successfully');
     res.json({
