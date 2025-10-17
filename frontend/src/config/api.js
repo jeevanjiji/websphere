@@ -53,7 +53,8 @@ export const API_ENDPOINTS = {
     MILESTONE_BY_ID: (workspaceId, milestoneId) => `/api/workspaces/${workspaceId}/milestones/${milestoneId}`,
     MILESTONES_BULK: (workspaceId) => `/api/workspaces/${workspaceId}/milestones/bulk`,
     DELIVERABLES: (workspaceId) => `/api/workspaces/${workspaceId}/deliverables`,
-    FILES: (workspaceId) => `/api/workspaces/${workspaceId}/files`
+    FILES: (workspaceId) => `/api/workspaces/${workspaceId}/files`,
+    PAYMENTS: (workspaceId) => `/api/workspaces/${workspaceId}/payments`
   },
 
   // Files endpoints

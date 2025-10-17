@@ -184,7 +184,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       console.log('🔍 Fetching workspace for project:', projectId);
       console.log('🔍 Token exists:', !!token);
       
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/project/${projectId}`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.PROJECT(projectId)), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -228,7 +228,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching milestones for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/milestones`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.MILESTONES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -254,7 +254,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching deliverables for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/deliverables`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.DELIVERABLES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -277,7 +277,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching files for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/files`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.FILES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -300,7 +300,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching payments for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/payments`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.PAYMENTS(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -335,7 +335,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       formData.append('description', 'Workspace file upload');
 
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspace._id}/files`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.FILES(workspace._id)), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -372,7 +372,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const createMilestone = async (milestoneData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspace._id}/milestones`), {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.MILESTONES(workspace._id)), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
