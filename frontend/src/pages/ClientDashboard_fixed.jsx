@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import {
   PlusIcon,
   BriefcaseIcon,
@@ -42,7 +43,7 @@ const ClientDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/projects/my', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.PROJECTS.MY), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
