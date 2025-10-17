@@ -13,6 +13,7 @@ import {
 import { Button, Card, Badge } from './ui';
 import ProjectApplicationModal from './ProjectApplicationModal';
 import ChatInterface from './ChatInterface';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 import WorkspaceInterface from './WorkspaceInterface';
 import WorkspaceInterfaceFixed from './WorkspaceInterfaceFixed';
 import DebugWorkspaceInterface from './DebugWorkspaceInterface';
@@ -101,7 +102,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         params.append('showAllProjects', 'true');
       }
 
-      const response = await fetch(`http://localhost:5000/api/projects/browse?${params}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROJECTS.BROWSE}?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -145,7 +146,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/matching/projects/${userId}?limit=10`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MATCHING.PROJECTS(userId)}?limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -210,7 +211,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         limit: '10'
       });
 
-      const response = await fetch(`http://localhost:5000/api/applications/my?${params}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.MY}?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -250,7 +251,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       const token = localStorage.getItem('token');
       if (!token) return false;
 
-      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.PROJECT(projectId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -274,7 +275,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/chats?page=${page}&limit=10`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CHATS.BASE}?page=${page}&limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

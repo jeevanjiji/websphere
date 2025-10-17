@@ -18,24 +18,26 @@ const socketIo  = require('socket.io');
 const JobScheduler = require('./jobs/scheduler');
 const EscrowScheduler = require('./jobs/escrowScheduler');
 
+const PORT = process.env.PORT || 5000;
+FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+
 const app  = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: ['http://localhost:5173'],
     methods: ['GET', 'POST'],
     credentials: true
   }
 });
-
-const PORT = process.env.PORT || 5000;
 
 /* ──────────────────────────────────────────
    Global Middleware
 ────────────────────────────────────────── */
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: [ 'http://localhost:5173'],
     credentials: true
   })
 );

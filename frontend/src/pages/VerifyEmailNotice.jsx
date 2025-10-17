@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EnvelopeIcon, ArrowPathIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const VerifyEmailNotice = () => {
   const [email, setEmail] = useState('');
@@ -31,7 +32,7 @@ const VerifyEmailNotice = () => {
 
     setResending(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/resend-verification', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.RESEND_VERIFICATION}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

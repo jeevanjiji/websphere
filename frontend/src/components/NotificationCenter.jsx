@@ -15,6 +15,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +24,6 @@ const NotificationCenter = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:5000');
   // Auto-filter notifications based on user role; no tab switching
 
   // Fetch notifications when dropdown opens
@@ -37,7 +37,7 @@ const NotificationCenter = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/api/notifications/list`, {
+      const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.LIST}`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { limit: 20 }
       });
@@ -110,7 +110,7 @@ const NotificationCenter = () => {
       if (!notification.read) {
         const token = localStorage.getItem('token');
         await axios.put(
-          `${API_BASE_URL}/api/notifications/${notification._id}/read`,
+          `${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.READ(notification._id)}`,
           {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -136,7 +136,7 @@ const NotificationCenter = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `${API_BASE_URL}/api/notifications/read-all`,
+        `${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.READ_ALL}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircleIcon, XCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const EmailVerified = () => {
   const [searchParams] = useSearchParams();
@@ -29,8 +30,8 @@ const EmailVerified = () => {
       // Dev URLs have format: /verify-email?token=user@example.com
       const isEmail = token.includes('@') && !token.includes('%40'); // %40 is URL encoded @
       const url = isEmail
-        ? `http://localhost:5000/api/auth/dev-verify/${token}`
-        : `http://localhost:5000/api/auth/verify-email/${token}`;
+        ? `${API_BASE_URL}${API_ENDPOINTS.AUTH.DEV_VERIFY}/${token}`
+        : `${API_BASE_URL}${API_ENDPOINTS.AUTH.VERIFY_EMAIL}/${token}`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -58,7 +59,7 @@ const EmailVerified = () => {
               formData.append('profilePicture', pendingData.profilePicture);
             }
 
-            const bioResponse = await fetch('http://localhost:5000/api/auth/freelancer/auto-tag-bio', {
+            const bioResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.FREELANCER_AUTO_TAG}`, {
               method: 'POST',
               credentials: 'include',
               body: formData

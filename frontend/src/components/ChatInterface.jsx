@@ -12,6 +12,7 @@ import {
 import Button from './ui/Button';
 import { toast } from 'react-hot-toast';
 import { formatMessageTime } from '../utils/dateUtils';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false }) => {
   const { socket } = useSocket();
@@ -72,7 +73,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
   const fetchChatDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/chats/${chatId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CHATS.BY_ID(chatId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -97,7 +98,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     setSending(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/chats/${chatId}/messages`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CHATS.MESSAGES(chatId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

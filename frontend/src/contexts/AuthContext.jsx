@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const AuthContext = createContext();
 
@@ -24,7 +25,7 @@ export const AuthProvider = ({ children }) => {
   const checkSession = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/auth/session', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.SESSION}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -96,7 +97,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.LOGIN}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -140,7 +141,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout', {
+      await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.LOGOUT}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -160,7 +161,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.REGISTER}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -179,7 +180,7 @@ export const AuthProvider = ({ children }) => {
 
   const googleLogin = async (credential) => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/google', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.GOOGLE}`, {
         method: 'POST',
         credentials: 'include',
         headers: {

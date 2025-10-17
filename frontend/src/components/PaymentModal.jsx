@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
   const [processing, setProcessing] = useState(false);
@@ -11,7 +12,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
 
       // Create escrow payment order
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/escrow/create', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PAYMENTS.ESCROW_CREATE}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -50,7 +51,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         handler: async function (response) {
           try {
             // Verify escrow payment
-            const verifyResponse = await fetch('http://localhost:5000/api/payments/escrow/verify', {
+            const verifyResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PAYMENTS.ESCROW_VERIFY}`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -109,7 +110,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         toast.error(`Payment failed: ${errorMessage}`);
         
         // Report failure to backend
-        await fetch('http://localhost:5000/api/payments/milestone/failure', {
+        await fetch(`${API_BASE_URL}${API_ENDPOINTS.PAYMENTS.MILESTONE_FAILURE}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -233,7 +234,7 @@ const PaymentHistory = ({ workspaceId, isOpen, onClose }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/payments/workspace/${workspaceId}/history`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PAYMENTS.WORKSPACE_HISTORY(workspaceId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

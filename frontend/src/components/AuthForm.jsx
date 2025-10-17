@@ -8,6 +8,7 @@ import { showToast } from '../utils/toast.jsx';
 import GoogleLoginButton from './GoogleLoginButton';
 import ValidatedInput from './ValidatedInput';
 import PasswordStrengthIndicator from './PasswordStrengthIndicator';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 import { Button, Input, Card } from './ui';
 import { validateFullName, validateEmail, validatePassword, validatePasswordConfirmation, validateRegistrationForm } from '../utils/validation';
 import { useAuth } from '../contexts/AuthContext';
@@ -150,7 +151,7 @@ const AuthForm = ({ mode = 'login' }) => {
         role: registerData.role
       });
 
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.REGISTER}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

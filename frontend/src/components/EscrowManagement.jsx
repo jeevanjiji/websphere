@@ -9,6 +9,7 @@ import {
   EyeIcon,
   HandRaisedIcon
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const EscrowManagement = () => {
   const [escrows, setEscrows] = useState([]);
@@ -37,7 +38,7 @@ const EscrowManagement = () => {
   const fetchEscrows = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows?status=${selectedStatus}&page=${currentPage}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROWS}?status=${selectedStatus}&page=${currentPage}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -61,7 +62,7 @@ const EscrowManagement = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/escrows/stats', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROWS_STATS}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -79,7 +80,7 @@ const EscrowManagement = () => {
   const viewEscrowDetails = async (escrowId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${escrowId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_BY_ID(escrowId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -101,7 +102,7 @@ const EscrowManagement = () => {
   const handleReleaseFunds = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${selectedEscrow._id}/release`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_RELEASE(selectedEscrow._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -130,7 +131,7 @@ const EscrowManagement = () => {
   const handleResolveDispute = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${selectedEscrow._id}/resolve-dispute`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_RESOLVE(selectedEscrow._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -164,7 +165,7 @@ const EscrowManagement = () => {
   const processAutoReleases = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/escrows/auto-release', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_AUTO_RELEASE}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

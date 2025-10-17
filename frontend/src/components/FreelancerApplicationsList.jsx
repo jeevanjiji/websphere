@@ -13,6 +13,7 @@ import Button from './ui/Button';
 import Badge from './ui/Badge';
 import Card from './ui/Card';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const FreelancerApplicationsList = ({ onOpenChat }) => {
   const [applications, setApplications] = useState([]);
@@ -34,8 +35,8 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
       console.log('🔥 Fetching freelancer applications...');
       
       const url = filter === 'all' 
-        ? 'http://localhost:5000/api/applications/my'
-        : `http://localhost:5000/api/applications/my?status=${filter}`;
+        ? `${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.MY}`
+        : `${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.MY}?status=${filter}`;
 
       const response = await fetch(url, {
         headers: {

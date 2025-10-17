@@ -5,6 +5,7 @@ import { EyeIcon, EyeSlashIcon, ArrowLeftIcon, PhotoIcon } from '@heroicons/reac
 import toast from 'react-hot-toast';
 import ValidatedInput from '../components/ValidatedInput';
 import { validateFullName, validateEmail, validatePassword, validatePasswordConfirmation, validateBio } from '../utils/validation';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 // import { Card } from '../components/ui';
 
 const FreelancerRegistration = () => {
@@ -121,7 +122,7 @@ const FreelancerRegistration = () => {
 
     try {
       // First register the user
-      const registerResponse = await fetch('http://localhost:5000/api/auth/register', {
+      const registerResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.REGISTER}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

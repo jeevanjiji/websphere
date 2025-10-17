@@ -15,6 +15,7 @@ import {
   XMarkIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
   console.log('🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
@@ -46,7 +47,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
       console.log('🔍 Token exists:', !!token);
       
       // First, check if workspace exists or create it
-      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.PROJECT(projectId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -88,7 +89,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
   const fetchMilestones = async (workspaceId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/milestones`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.MILESTONES(workspaceId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -106,7 +107,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
   const fetchDeliverables = async (workspaceId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/deliverables`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.DELIVERABLES(workspaceId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -124,7 +125,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
   const fetchFiles = async (workspaceId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/files`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.FILES(workspaceId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -176,7 +177,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/files`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.FILES(workspace._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -204,7 +205,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('Creating milestone with data:', milestoneData);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.MILESTONES(workspace._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -250,7 +251,7 @@ const WorkspaceInterface = ({ projectId, applicationId, onClose }) => {
 
   const handleApproveMilestone = async (milestoneId, status) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones/${milestoneId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.MILESTONE_BY_ID(workspace._id, milestoneId)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -545,7 +546,7 @@ const FilesTab = ({ files, workspace, onFileUpload, onRefresh }) => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <a
-                    href={`http://localhost:5000/api/files/workspaces/${workspace._id}/download/${file._id}`}
+                    href={`${API_BASE_URL}${API_ENDPOINTS.FILES.DOWNLOAD(workspace._id, file._id)}`}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                     download
                   >
@@ -657,7 +658,7 @@ const MilestonesTab = ({ milestones, workspace, user, onCreate, onRefresh }) => 
   const handleApplyTemplate = async (templateMilestones) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones/bulk`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.MILESTONES_BULK(workspace._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -989,7 +990,7 @@ const DeliverablesTab = ({ deliverables, workspace, milestones, user, onRefresh 
       });
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/deliverables`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.DELIVERABLES(workspace._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

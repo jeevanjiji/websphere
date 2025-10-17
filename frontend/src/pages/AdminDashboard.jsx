@@ -19,6 +19,7 @@ import {
   EyeIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({});
@@ -49,7 +50,7 @@ const AdminDashboard = () => {
 
       // Fetch dashboard stats
       console.log('Fetching dashboard stats with token:', token ? 'Token exists' : 'No token');
-      const statsResponse = await fetch('http://localhost:5000/api/admin/dashboard-stats', {
+      const statsResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.DASHBOARD_STATS}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -73,7 +74,7 @@ const AdminDashboard = () => {
 
       // Fetch users
       console.log('Fetching users...');
-      const usersResponse = await fetch('http://localhost:5000/api/admin/users', {
+      const usersResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.USERS}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

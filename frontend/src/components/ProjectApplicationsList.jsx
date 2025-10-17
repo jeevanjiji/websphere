@@ -12,6 +12,7 @@ import {
 import Button from './ui/Button';
 import Badge from './ui/Badge';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat, onOpenWorkspace }) => {
   const [applications, setApplications] = useState([]);
@@ -33,7 +34,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
         return;
       }
 
-      const url = `http://localhost:5000/api/applications/project/${projectId}`;
+      const url = `${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.PROJECT(projectId)}`;
       
       const response = await fetch(url, {
         headers: {
@@ -67,7 +68,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/applications/${applicationId}/status`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.STATUS(applicationId)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -116,7 +117,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
       const token = localStorage.getItem('token');
       
       // Check if chat already exists or create one
-      const response = await fetch(`http://localhost:5000/api/chats/application/${application._id}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CHATS.APPLICATION(application._id)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +150,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/applications/${applicationId}/award`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.AWARD(applicationId)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
