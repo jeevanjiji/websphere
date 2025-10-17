@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import { 
   CheckCircleIcon,
   XMarkIcon,
@@ -30,7 +31,7 @@ const DeliverableApproval = ({ milestone, onApprovalSubmitted }) => {
       setSubmitting(true);
 
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/escrow/approve-deliverable', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.PAYMENTS.APPROVE_DELIVERABLE), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -69,7 +70,7 @@ const DeliverableApproval = ({ milestone, onApprovalSubmitted }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/escrow/raise-dispute', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.PAYMENTS.RAISE_DISPUTE), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

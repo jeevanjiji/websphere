@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import {
   MagnifyingGlassIcon,
   StarIcon,
@@ -67,7 +68,7 @@ const FreelancerBrowser = () => {
         params.append('hourlyRateMax', hourlyRateMax);
       }
 
-      const response = await fetch(`http://localhost:5000/api/freelancers/browse?${params}`, {
+      const response = await fetch(`${buildApiUrl(API_ENDPOINTS.FREELANCERS.BROWSE)}?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

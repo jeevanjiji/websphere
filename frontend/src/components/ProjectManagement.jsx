@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import {
   CheckCircleIcon,
   XMarkIcon,
@@ -30,8 +31,8 @@ const ProjectManagement = () => {
     try {
       const token = localStorage.getItem('token');
       const url = filter === 'all' 
-        ? 'http://localhost:5000/api/admin/projects'
-        : `http://localhost:5000/api/admin/projects/pending`;
+        ? buildApiUrl(API_ENDPOINTS.ADMIN.PROJECTS)
+        : buildApiUrl(`${API_ENDPOINTS.ADMIN.PROJECTS}/pending`);
 
       const response = await fetch(url, {
         headers: {

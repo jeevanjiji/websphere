@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import {
   CodeBracketIcon,
   PaintBrushIcon,
@@ -36,7 +37,7 @@ const RoleBasedContent = ({ onCardClick }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/projects/browse?limit=8&showAllProjects=true', {
+      const response = await fetch(`${buildApiUrl(API_ENDPOINTS.PROJECTS.BROWSE)}?limit=8&showAllProjects=true`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -61,7 +62,7 @@ const RoleBasedContent = ({ onCardClick }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/freelancers/browse?limit=${limit}`, {
+      const response = await fetch(`${buildApiUrl(API_ENDPOINTS.FREELANCERS.BROWSE)}?limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
