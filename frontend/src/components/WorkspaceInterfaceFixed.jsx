@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import ChatInterface from './ChatInterface';
 import FileViewer from './FileViewerNew';
 import VideoCall from './VideoCall';
@@ -183,7 +184,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       console.log('🔍 Fetching workspace for project:', projectId);
       console.log('🔍 Token exists:', !!token);
       
-      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/project/${projectId}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -227,7 +228,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching milestones for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/milestones`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/milestones`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -253,7 +254,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching deliverables for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/deliverables`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/deliverables`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -276,7 +277,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching files for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/files`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/files`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -299,7 +300,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching payments for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/payments`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspaceId}/payments`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -334,7 +335,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       formData.append('description', 'Workspace file upload');
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/files`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspace._id}/files`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -371,7 +372,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const createMilestone = async (milestoneData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones`, {
+      const response = await fetch(buildApiUrl(`${API_ENDPOINTS.WORKSPACES.BASE}/${workspace._id}/milestones`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -826,7 +827,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       }
 
       // Create download URL using workspace ID
-      const downloadUrl = `http://localhost:5000/api/files/workspaces/${workspace._id}/download/${file._id || file.id}`;
+      const downloadUrl = buildApiUrl(`${API_ENDPOINTS.FILES.BASE}/workspaces/${workspace._id}/download/${file._id || file.id}`);
       
       // Create a temporary anchor element and trigger download
       const link = document.createElement('a');
@@ -1737,7 +1738,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             {file.filename || `File ${index + 1}`}
                           </button>
                           <a
-                            href={`http://localhost:5000${file.url}`}
+                            href={`${API_BASE_URL}${file.url}`}
                             download={file.originalName || file.filename}
                             className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-sm"
                             title="Download file"
