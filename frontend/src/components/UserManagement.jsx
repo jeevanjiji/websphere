@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import { 
   TrashIcon, 
   ArrowPathIcon, 
@@ -36,7 +37,7 @@ const UserManagement = () => {
       const token = localStorage.getItem('token');
       console.log('UserManagement - Fetching users with token:', token ? 'Token exists' : 'No token');
 
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USERS), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -64,7 +65,7 @@ const UserManagement = () => {
   const fetchDeletedUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/users/deleted', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USERS_DELETED), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -103,8 +104,8 @@ const UserManagement = () => {
     try {
       const token = localStorage.getItem('token');
       const endpoint = deleteType === 'soft' 
-        ? `http://localhost:5000/api/admin/users/${selectedUser._id}/soft-delete`
-        : `http://localhost:5000/api/admin/users/${selectedUser._id}/hard-delete`;
+        ? buildApiUrl(API_ENDPOINTS.ADMIN.USER_SOFT_DELETE(selectedUser._id))
+        : buildApiUrl(API_ENDPOINTS.ADMIN.USER_HARD_DELETE(selectedUser._id));
 
       const method = deleteType === 'soft' ? 'PATCH' : 'DELETE';
       const body = deleteType === 'soft' 
@@ -143,7 +144,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedUser._id}/deactivate`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USER_DEACTIVATE(selectedUser._id)), {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -212,7 +213,7 @@ const UserManagement = () => {
 
       if (confirmed) {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5000/api/admin/users/${user._id}/reactivate`, {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USER_REACTIVATE(user._id)), {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -241,7 +242,7 @@ const UserManagement = () => {
 
       if (confirmed) {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5000/api/admin/users/${user._id}/restore`, {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USER_RESTORE(user._id)), {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -287,7 +288,7 @@ const UserManagement = () => {
 
         if (doubleConfirm) {
           const token = localStorage.getItem('token');
-          const response = await fetch('http://localhost:5000/api/admin/users/freelancers/delete-all-for-testing', {
+          const response = await fetch(buildApiUrl(API_ENDPOINTS.ADMIN.USERS_DELETE_ALL_FREELANCERS), {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${token}`,
