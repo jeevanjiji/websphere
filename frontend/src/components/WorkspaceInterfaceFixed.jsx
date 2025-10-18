@@ -1489,6 +1489,11 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                                 🔒 Held in Escrow
                               </span>
                             )}
+                            {payment.milestone?.escrowStatus === 'released' && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ✅ Released from Escrow
+                              </span>
+                            )}
                           </div>
                           <p className="text-gray-600 text-sm mt-1">
                             {payment.milestone?.title || 'Payment'}
@@ -1510,16 +1515,31 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                               </div>
                             </div>
                           )}
+                          {payment.milestone?.escrowStatus === 'released' && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                              <div className="flex items-center text-sm text-green-800">
+                                <span className="text-green-600 mr-2">✅</span>
+                                <div>
+                                  <p className="font-medium">Payment released from escrow</p>
+                                  <p className="text-xs text-green-600 mt-1">
+                                    Funds released on {payment.milestone.escrowReleasedAt ? new Date(payment.milestone.escrowReleasedAt).toLocaleDateString() : 'N/A'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          payment.status === 'completed' && payment.milestone?.escrowStatus === 'active' 
+                          payment.milestone?.escrowStatus === 'active' 
                             ? 'bg-blue-100 text-blue-800' :
-                          payment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          payment.milestone?.escrowStatus === 'released' || payment.status === 'completed'
+                            ? 'bg-green-100 text-green-800' :
                           payment.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
                           payment.status === 'pending' ? 'bg-orange-100 text-orange-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {payment.milestone?.escrowStatus === 'active' ? 'In Escrow' : 
+                           payment.milestone?.escrowStatus === 'released' ? 'Released' :
                            payment.status || 'Pending'}
                         </span>
                       </div>

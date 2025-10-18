@@ -176,6 +176,7 @@ escrowSchema.virtual('daysSinceCreation').get(function() {
 escrowSchema.virtual('isAutoReleaseDue').get(function() {
   if (this.status !== 'active' || this.disputeRaised) return false;
   if (!this.deliverableSubmitted || this.clientApprovalStatus === 'rejected') return false;
+  if (this.clientApprovalStatus !== 'approved') return false;
   
   const releaseDate = new Date(this.activatedAt);
   releaseDate.setDate(releaseDate.getDate() + this.releaseConditions.autoReleaseAfterDays);

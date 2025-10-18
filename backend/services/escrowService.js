@@ -382,8 +382,16 @@ class EscrowService {
         throw new Error('No active escrow found for fund release');
       }
 
-      if (!escrow.deliverableSubmitted || escrow.clientApprovalStatus === 'rejected') {
-        throw new Error('Cannot release funds: Deliverable not submitted or rejected by client');
+      if (!escrow.deliverableSubmitted) {
+        throw new Error('Cannot release funds: Deliverable not submitted');
+      }
+
+      if (escrow.clientApprovalStatus === 'rejected') {
+        throw new Error('Cannot release funds: Deliverable rejected by client');
+      }
+
+      if (escrow.clientApprovalStatus !== 'approved') {
+        throw new Error('Cannot release funds: Deliverable not yet approved by client');
       }
 
       // Update escrow
@@ -630,7 +638,7 @@ class EscrowService {
             userRole: 'freelancer',
             type: 'payment',
             title: '💰 Payment Received!',
-            body: `Client has paid ₹${escrow.totalAmount} for milestone "${escrow.milestone.title}". Funds are held in escrow until deliverable approval.`,
+            body: `${escrow.client.fullName} has paid ₹${escrow.totalAmount} for milestone "${escrow.milestone.title}". Funds are held in escrow until deliverable approval.`,
             icon: '/payment-icon.png',
             data: {
               workspaceId: escrow.workspace._id,
@@ -671,7 +679,7 @@ class EscrowService {
             userRole: 'freelancer',
             type: 'payment',
             title: '🎉 Funds Released!',
-            body: `Congratulations! ₹${escrow.amountToFreelancer} has been released to your account for milestone "${escrow.milestone.title}".`,
+            body: `Congratulations! ₹${escrow.amountToFreelancer} from ${escrow.client.fullName} has been released to your account for milestone "${escrow.milestone.title}".`,
             icon: '/success-icon.png',
             data: {
               workspaceId: escrow.workspace._id,

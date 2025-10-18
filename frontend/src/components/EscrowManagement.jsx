@@ -552,7 +552,9 @@ const EscrowManagement = () => {
               {/* Actions */}
               <div className="flex gap-3">
                 {selectedEscrow.status === 'active' && 
-                 selectedEscrow.deliverableSubmitted && 
+                 (selectedEscrow.deliverableSubmitted || 
+                  selectedEscrow.deliverableSubmittedAt || 
+                  selectedEscrow.clientApprovalStatus === 'approved') && 
                  selectedEscrow.clientApprovalStatus === 'approved' && (
                   <button
                     onClick={() => setShowReleaseModal(true)}
