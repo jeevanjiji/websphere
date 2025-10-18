@@ -495,8 +495,16 @@ const EscrowManagement = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>Deliverable Submitted:</span>
-                    <span className={selectedEscrow.deliverableSubmitted ? 'text-green-600' : 'text-red-600'}>
-                      {selectedEscrow.deliverableSubmitted ? 'Yes' : 'No'}
+                    <span className={
+                      (selectedEscrow.deliverableSubmitted || 
+                       selectedEscrow.deliverableSubmittedAt || 
+                       selectedEscrow.clientApprovalStatus === 'approved') 
+                      ? 'text-green-600' : 'text-red-600'
+                    }>
+                      {(selectedEscrow.deliverableSubmitted || 
+                        selectedEscrow.deliverableSubmittedAt || 
+                        selectedEscrow.clientApprovalStatus === 'approved') 
+                       ? 'Yes' : 'No'}
                     </span>
                   </div>
                   <div className="flex justify-between">
