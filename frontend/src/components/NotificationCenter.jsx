@@ -143,7 +143,7 @@ const NotificationCenter = () => {
             searchParams.append('tab', 'deliverables');
           }
           
-          navigate(`/freelancer-dashboard?${searchParams.toString()}`);
+          navigate(`/freelancer?${searchParams.toString()}`);
         } else if (user?.role === 'client') {
           // For clients, navigate to client dashboard with workspace info
           const searchParams = new URLSearchParams({
@@ -160,7 +160,7 @@ const NotificationCenter = () => {
             searchParams.append('tab', 'payments');
           }
           
-          navigate(`/client-dashboard?${searchParams.toString()}`);
+          navigate(`/client?${searchParams.toString()}`);
         } else {
           // Fallback for admin or other roles
           navigate('/admin-dashboard');
@@ -170,9 +170,9 @@ const NotificationCenter = () => {
       } else if (notification.type === 'due-date' || notification.type === 'deadline-reminder') {
         // For due date notifications without workspace, navigate to appropriate dashboard
         if (user?.role === 'client') {
-          navigate('/client-dashboard');
+          navigate('/client');
         } else if (user?.role === 'freelancer') {
-          navigate('/freelancer-dashboard');
+          navigate('/freelancer');
         } else {
           navigate('/dashboard');
         }

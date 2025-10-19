@@ -14,8 +14,7 @@ import FreelancerProfileSetup from './pages/FreelancerProfileSetup';
 import FindWork from './pages/FindWork';
 import WhyWebSphere from './pages/WhyWebSphere';
 
-import FreelancerDashboard from './components/FreelancerDashboard';
-import ClientDashboard from './components/ClientDashboard';
+
 import TestPage from './pages/TestPage';
 import VerifyEmailNotice from './pages/VerifyEmailNotice';
 import EmailVerified from './pages/EmailVerified';
@@ -75,8 +74,6 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/find-work" element={<FindWork />} />
           <Route path="/why-websphere" element={<WhyWebSphere />} />
-          <Route path="/freelancer-dashboard" element={<FreelancerDashboard />} />
-          <Route path="/client-dashboard" element={<ClientDashboard />} />
           </Routes>
           </div>
           <Toaster

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TestCaseEntity>
+   <description>websphere login test</description>
+   <name>Login Test</name>
+   <tag>login and reg</tag>
+   <comment></comment>
+   <recordOption>OTHER</recordOption>
+   <testCaseGuid>7daf13d2-e540-47a2-acee-30bf2e94cd8d</testCaseGuid>
+</TestCaseEntity>
