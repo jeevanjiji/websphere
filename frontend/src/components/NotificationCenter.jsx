@@ -122,16 +122,29 @@ const NotificationCenter = () => {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
 
-      // Navigate based on notification type and user role
-      if (notification.data?.workspaceId) {
-        const workspaceId = notification.data.workspaceId;
+      // Enhanced workspace ID extraction
+      const extractWorkspaceId = (notification) => {
+        const workspaceId = notification.workspaceId || notification.data?.workspaceId;
+        
+        if (!workspaceId) return null;
+        
+        if (typeof workspaceId === 'object' && workspaceId._id) {
+          return String(workspaceId._id);
+        }
+        
+        return String(workspaceId);
+      };
+
+      const workspaceIdStr = extractWorkspaceId(notification);
+      
+      if (workspaceIdStr) {
         
         // Navigate to appropriate dashboard with workspace parameters
         if (user?.role === 'freelancer') {
           // For freelancers, navigate to freelancer dashboard with workspace info
           const searchParams = new URLSearchParams({
             openWorkspace: 'true',
-            workspaceId: workspaceId
+            workspaceId: workspaceIdStr
           });
           
           // Add specific tab based on notification type
@@ -148,7 +161,7 @@ const NotificationCenter = () => {
           // For clients, navigate to client dashboard with workspace info
           const searchParams = new URLSearchParams({
             openWorkspace: 'true',
-            workspaceId: workspaceId
+            workspaceId: workspaceIdStr
           });
           
           // Add specific tab based on notification type

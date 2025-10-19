@@ -138,6 +138,8 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
       }
 
       // Fetch workspace details to get project and application IDs
+      console.log('🔍 Fetching workspace details for ID:', workspaceId);
+      
       const response = await fetch(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -145,13 +147,24 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
         }
       });
 
+      console.log('📊 Workspace API response status:', response.status);
+      
       const data = await response.json();
-      if (data.success && data.workspace) {
+      console.log('📋 Workspace API response data:', data);
+      
+      if (!response.ok) {
+        console.error('❌ Workspace API error:', response.status, data.message);
+        toast.error(data.message || 'Failed to load workspace');
+        return;
+      }
+
+      if (data.success && data.data) {
         // Open the workspace modal with the correct IDs
+        console.log('✅ Opening workspace modal with data:', data.data);
         setWorkspaceModal({
           isOpen: true,
-          projectId: data.workspace.project._id || data.workspace.project,
-          applicationId: data.workspace.application._id || data.workspace.application,
+          projectId: data.data.project._id || data.data.project,
+          applicationId: data.data.application._id || data.data.application,
           initialTab: specificTab // Pass the specific tab to open
         });
         
