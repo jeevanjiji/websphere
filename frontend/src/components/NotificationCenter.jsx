@@ -122,9 +122,60 @@ const NotificationCenter = () => {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
 
-      // Navigate to workspace if available
+      // Navigate based on notification type and user role
       if (notification.data?.workspaceId) {
-        navigate(`/workspace/${notification.data.workspaceId}`);
+        const workspaceId = notification.data.workspaceId;
+        
+        // Navigate to appropriate dashboard with workspace parameters
+        if (user?.role === 'freelancer') {
+          // For freelancers, navigate to freelancer dashboard with workspace info
+          const searchParams = new URLSearchParams({
+            openWorkspace: 'true',
+            workspaceId: workspaceId
+          });
+          
+          // Add specific tab based on notification type
+          if (notification.type === 'payment') {
+            searchParams.append('tab', 'payment');
+          } else if (notification.type === 'milestone') {
+            searchParams.append('tab', 'milestones');
+          } else if (notification.type === 'deliverable') {
+            searchParams.append('tab', 'deliverables');
+          }
+          
+          navigate(`/freelancer-dashboard?${searchParams.toString()}`);
+        } else if (user?.role === 'client') {
+          // For clients, navigate to client dashboard with workspace info
+          const searchParams = new URLSearchParams({
+            openWorkspace: 'true',
+            workspaceId: workspaceId
+          });
+          
+          // Add specific tab based on notification type
+          if (notification.type === 'deliverable-reminder' || notification.type === 'deliverable') {
+            searchParams.append('tab', 'deliverables');
+          } else if (notification.type === 'milestone') {
+            searchParams.append('tab', 'milestones');
+          } else if (notification.type === 'payment') {
+            searchParams.append('tab', 'payments');
+          }
+          
+          navigate(`/client-dashboard?${searchParams.toString()}`);
+        } else {
+          // Fallback for admin or other roles
+          navigate('/admin-dashboard');
+        }
+        
+        setIsOpen(false);
+      } else if (notification.type === 'due-date' || notification.type === 'deadline-reminder') {
+        // For due date notifications without workspace, navigate to appropriate dashboard
+        if (user?.role === 'client') {
+          navigate('/client-dashboard');
+        } else if (user?.role === 'freelancer') {
+          navigate('/freelancer-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
         setIsOpen(false);
       }
     } catch (error) {

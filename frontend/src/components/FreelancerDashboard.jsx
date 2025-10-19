@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
@@ -20,6 +21,7 @@ import DebugWorkspaceInterface from './DebugWorkspaceInterface';
 import { formatChatListTime } from '../utils/dateUtils';
 
 const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [internalActiveTab, setInternalActiveTab] = useState('browse');
   
   // Use external activeTab if provided, otherwise use internal state
@@ -195,6 +197,59 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       fetchProjects(1, searchTerm, selectedSkills);
     }
   }, [showAllProjects]);
+
+  // Handle opening workspace from URL parameters (for notification clicks)
+  useEffect(() => {
+    const openWorkspace = searchParams.get('openWorkspace');
+    const workspaceId = searchParams.get('workspaceId');
+    const tab = searchParams.get('tab');
+
+    if (openWorkspace === 'true' && workspaceId) {
+      // Find workspace by ID and open it
+      openWorkspaceFromId(workspaceId, tab);
+      
+      // Clear the URL parameters to avoid reopening on refresh
+      setSearchParams({});
+    }
+  }, [searchParams]);
+
+  // Function to open workspace by workspace ID
+  const openWorkspaceFromId = async (workspaceId, specificTab = null) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to access workspace');
+        return;
+      }
+
+      // Fetch workspace details to get project and application IDs
+      const response = await fetch(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success && data.workspace) {
+        // Open the workspace modal with the correct IDs
+        setWorkspaceModal({
+          isOpen: true,
+          projectId: data.workspace.project._id || data.workspace.project,
+          applicationId: data.workspace.application._id || data.workspace.application,
+          initialTab: specificTab // Pass the specific tab to open
+        });
+        
+        // Switch to active projects tab since workspace is opening
+        setActiveTab('active');
+      } else {
+        toast.error('Workspace not found or access denied');
+      }
+    } catch (error) {
+      console.error('Error opening workspace:', error);
+      toast.error('Failed to open workspace');
+    }
+  };
 
   // Fetch freelancer's applications
   const fetchMyApplications = async (page = 1) => {
@@ -1026,6 +1081,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         <WorkspaceInterfaceFixed
           projectId={workspaceModal.projectId}
           applicationId={workspaceModal.applicationId}
+          initialTab={workspaceModal.initialTab}
           onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
         />
       )}

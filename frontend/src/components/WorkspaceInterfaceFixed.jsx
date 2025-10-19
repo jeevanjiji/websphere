@@ -21,7 +21,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 
-const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
+const WorkspaceInterfaceFixed = ({ projectId, applicationId, initialTab, onClose }) => {
   console.log('� WorkspaceInterfaceFixed: Component starting to render');
   console.log('�🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
 
@@ -31,7 +31,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   console.log('🔍 WorkspaceInterface: User from AuthContext:', user);
   const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState(initialTab || 'chat');
   const [milestones, setMilestones] = useState([]);
   const [deliverables, setDeliverables] = useState([]);
   const [files, setFiles] = useState([]);
