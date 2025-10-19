@@ -88,16 +88,17 @@ async function revertDeliverableReview(deliverableId = null) {
           console.log(`   Escrow ID: ${escrow._id}`);
           console.log(`   Current Status: ${escrow.status}`);
           
-          // Revert escrow status to held
+          // Revert escrow status to active (funds held in escrow)
           const originalEscrowStatus = escrow.status;
-          escrow.status = 'funds_held';
-          escrow.releaseDate = undefined;
-          escrow.adminNotes = `Reverted from ${originalEscrowStatus} for testing - ${new Date().toISOString()}`;
+          escrow.status = 'active';
+          escrow.releasedAt = undefined;
+          escrow.releasedBy = undefined;
+          escrow.releaseReason = undefined;
           
           await escrow.save();
           
-          console.log(`   Escrow Status: ${originalEscrowStatus} → funds_held`);
-          console.log('   Cleared release date and added revert note');
+          console.log(`   Escrow Status: ${originalEscrowStatus} → active`);
+          console.log('   Cleared release data - funds are now held in escrow');
         }
       } catch (escrowError) {
         console.log('⚠️  Could not revert escrow status:', escrowError.message);
