@@ -69,7 +69,7 @@ function generatePasswordResetToken() {
  * @returns {string} - Verification URL
  */
 function generateVerificationUrl(token) {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+  const baseUrl = process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com';
   return `${baseUrl}/verify-email?token=${token}`;
 }
 
@@ -79,7 +79,7 @@ function generateVerificationUrl(token) {
  * @returns {string} - Password reset URL
  */
 function generatePasswordResetUrl(token) {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+  const baseUrl = process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com';
   return `${baseUrl}/reset-password?token=${token}`;
 }
 

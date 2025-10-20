@@ -51,12 +51,8 @@ const EmailVerified = () => {
     try {
       console.log('Starting email verification for token:', token);
       
-      // Check if token is actually an email (from dev verification URLs)
-      // Dev URLs have format: /verify-email?token=user@example.com
-      const isEmail = token.includes('@') && !token.includes('%40'); // %40 is URL encoded @
-      const url = isEmail
-        ? `${API_BASE_URL}${API_ENDPOINTS.AUTH.DEV_VERIFY}/${token}`
-        : `${API_BASE_URL}${API_ENDPOINTS.AUTH.VERIFY_EMAIL}/${token}`;
+      // Use the regular email verification endpoint
+      const url = `${API_BASE_URL}${API_ENDPOINTS.AUTH.VERIFY_EMAIL}/${token}`;
 
       console.log('Verification URL:', url);
 

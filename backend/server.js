@@ -19,7 +19,7 @@ const JobScheduler = require('./jobs/scheduler');
 const EscrowScheduler = require('./jobs/escrowScheduler');
 
 const PORT = process.env.PORT || 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com';
 
 
 const app  = express();

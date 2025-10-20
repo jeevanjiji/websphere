@@ -19,7 +19,6 @@ export const API_ENDPOINTS = {
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     VERIFY_EMAIL: '/api/auth/verify-email',
-    DEV_VERIFY: '/api/auth/dev-verify',
     RESEND_VERIFICATION: '/api/auth/resend-verification',
     FREELANCER_AUTO_TAG: '/api/auth/freelancer/auto-tag-bio'
   },
