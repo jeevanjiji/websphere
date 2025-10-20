@@ -97,6 +97,10 @@ const FreelancerRegistration = () => {
   }, [isFormValid, showAlert]);
 
   const handleProfilePictureChange = useCallback((e) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
+    }
+    
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
       setRegistrationData({ ...registrationData, profilePicture: file });
@@ -106,7 +110,7 @@ const FreelancerRegistration = () => {
       };
       reader.readAsDataURL(file);
     }
-  }, []);
+  }, [registrationData]);
 
   const handleBioSubmit = useCallback(async (e) => {
     e.preventDefault();
