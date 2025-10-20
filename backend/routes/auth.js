@@ -498,6 +498,27 @@ router.get('/verify-email/:token', async (req, res) => {
       });
     }
 
+    // First check if user is already verified with this token
+    const alreadyVerifiedUser = await User.findOne({
+      verificationToken: token,
+      isVerified: true
+    });
+
+    if (alreadyVerifiedUser) {
+      return res.json({
+        success: true,
+        message: 'Email already verified! Your account is ready to use.',
+        user: {
+          id: alreadyVerifiedUser._id,
+          fullName: alreadyVerifiedUser.fullName,
+          email: alreadyVerifiedUser.email,
+          role: alreadyVerifiedUser.role,
+          isVerified: alreadyVerifiedUser.isVerified
+        },
+        alreadyVerified: true
+      });
+    }
+
     // Find pending user with this verification token
     const pendingUser = await PendingUser.findOne({
       verificationToken: token,
@@ -513,6 +534,10 @@ router.get('/verify-email/:token', async (req, res) => {
 
     // Convert pending user to actual user
     const user = pendingUser.toActualUser();
+    
+    // Preserve the verification token for future reference
+    user.verificationToken = token;
+    
     await user.save();
 
     // Remove the pending user
