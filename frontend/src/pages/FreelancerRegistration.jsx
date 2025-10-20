@@ -149,19 +149,41 @@ const FreelancerRegistration = () => {
       // Check if the response is ok before trying to parse JSON
       if (!registerResponse.ok) {
         let errorMessage = 'Registration failed. Please try again.';
+        let isEmailAlreadySent = false;
         
         try {
           const errorData = await registerResponse.json();
           errorMessage = errorData.message || errorMessage;
+          
+          // Special case: email already sent - treat as success, not error
+          if (errorMessage.includes('verification email has already been sent')) {
+            isEmailAlreadySent = true;
+          }
         } catch (parseError) {
           // If JSON parsing fails, use status-based message
           if (registerResponse.status === 400) {
             errorMessage = 'Invalid registration data. Please check your inputs.';
-          } else if (registerResponse.status === 409 || registerResponse.status === 400) {
+          } else if (registerResponse.status === 409) {
             errorMessage = 'Email already exists or has a pending verification.';
           } else if (registerResponse.status >= 500) {
             errorMessage = 'Server error. Please try again later.';
           }
+        }
+        
+        // Handle "email already sent" as a success case
+        if (isEmailAlreadySent) {
+          showAlert('info', 'Email Already Sent', 
+            'A verification email has already been sent to your email address. Please check your inbox and verify your email to complete registration.');
+          
+          // Store minimal registration data for verification page
+          localStorage.setItem('pendingRegistration', JSON.stringify({
+            email: registrationData.email,
+            emailSent: true,
+            devVerificationUrl: null
+          }));
+          
+          navigate('/verify-email-notice');
+          return;
         }
         
         showAlert('error', 'Registration Failed', errorMessage);
