@@ -121,6 +121,13 @@ const FreelancerRegistration = () => {
     setLoading(true);
 
     try {
+      console.log('Attempting registration with:', {
+        fullName: registrationData.fullName,
+        email: registrationData.email,
+        role: 'freelancer',
+        bioLength: registrationData.bio?.length || 0
+      });
+
       // First register the user
       const registerResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.REGISTER}`, {
         method: 'POST',
@@ -136,10 +143,36 @@ const FreelancerRegistration = () => {
         })
       });
 
+      console.log('Registration response status:', registerResponse.status);
+      console.log('Registration response ok:', registerResponse.ok);
+
+      // Check if the response is ok before trying to parse JSON
+      if (!registerResponse.ok) {
+        let errorMessage = 'Registration failed. Please try again.';
+        
+        try {
+          const errorData = await registerResponse.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, use status-based message
+          if (registerResponse.status === 400) {
+            errorMessage = 'Invalid registration data. Please check your inputs.';
+          } else if (registerResponse.status === 409 || registerResponse.status === 400) {
+            errorMessage = 'Email already exists or has a pending verification.';
+          } else if (registerResponse.status >= 500) {
+            errorMessage = 'Server error. Please try again later.';
+          }
+        }
+        
+        showAlert('error', 'Registration Failed', errorMessage);
+        setStep(1); // Go back to basic info step
+        return;
+      }
+
       const registerData = await registerResponse.json();
 
       if (!registerData.success) {
-        showAlert('error', 'Registration Failed', registerData.message);
+        showAlert('error', 'Registration Failed', registerData.message || 'Registration failed. Please try again.');
         setStep(1); // Go back to basic info step
         return;
       }
@@ -169,11 +202,23 @@ const FreelancerRegistration = () => {
     } catch (error) {
       console.error('Registration error:', error);
 
+      // Provide specific error messages based on error type
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        showAlert('error', 'Connection Error', 'Unable to connect to server. Please check your internet connection and try again.');
+        showAlert('error', 'Connection Error', 
+          'Unable to connect to the server. Please check your internet connection and try again.');
+      } else if (error.name === 'SyntaxError') {
+        showAlert('error', 'Server Error', 
+          'The server returned an invalid response. Please try again later.');
+      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+        showAlert('error', 'Network Error', 
+          'Network request failed. Please check your connection and try again.');
       } else {
-        showAlert('error', 'Registration Error', 'An unexpected error occurred. Please try again.');
+        showAlert('error', 'Registration Error', 
+          `An unexpected error occurred: ${error.message || 'Please try again.'}`);
       }
+      
+      // Go back to step 1 on any error
+      setStep(1);
     } finally {
       setLoading(false);
     }
