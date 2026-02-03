@@ -785,7 +785,7 @@ router.get('/escrows/:escrowId', authenticate, isAdmin, async (req, res) => {
     const { escrowId } = req.params;
 
     const escrow = await Escrow.findById(escrowId)
-      .populate('milestone', 'title description amount status')
+      .populate('milestone', 'title description amount status deliveryStatus submittedBy reviewedBy')
       .populate('workspace', 'status')
       .populate('client', 'fullName email')
       .populate('freelancer', 'fullName email')
@@ -806,11 +806,25 @@ router.get('/escrows/:escrowId', authenticate, isAdmin, async (req, res) => {
       });
     }
 
+    // Check if deliverable is submitted and approved based on milestone status
+    const isDeliverableSubmitted = escrow.milestone?.deliveryStatus === 'delivered' || escrow.milestone?.submittedBy;
+    const isApproved = escrow.milestone?.status === 'approved';
+    const isReadyForRelease = escrow.status === 'active' && isDeliverableSubmitted && isApproved;
+
     console.log(`✅ Retrieved escrow details: ${escrowId}`);
+    console.log(`📊 Escrow status: ${escrow.status}`);
+    console.log(`📦 Milestone deliveryStatus: ${escrow.milestone?.deliveryStatus}`);
+    console.log(`✅ Milestone status: ${escrow.milestone?.status}`);
+    console.log(`🎯 Ready for release: ${isReadyForRelease}`);
 
     res.json({
       success: true,
-      data: escrow
+      data: {
+        ...escrow.toObject(),
+        isDeliverableSubmitted,
+        isApproved,
+        isReadyForRelease
+      }
     });
   } catch (error) {
     console.error('❌ Error fetching escrow details:', error);

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const { auth } = require('../middlewares/auth');
 const { uploadWorkspaceFiles, uploadSingleWorkspaceFile, handleMulterError } = require('../middlewares/upload');
 const { uploadToCloudinary, validateCloudinaryConfig } = require('../utils/cloudinaryConfig');
+const { createWorkspaceEvent, createDeliverableEvent } = require('../utils/timelineHelper');
 
 // Import models
 const Workspace = require('../models/Workspace');
@@ -14,6 +15,8 @@ const WorkspaceFile = require('../models/WorkspaceFile');
 const Project = require('../models/Project');
 const Application = require('../models/Application');
 const User = require('../models/User');
+const TimelineEvent = require('../models/TimelineEvent');
+const Escrow = require('../models/Escrow');
 
 // Middleware to check workspace access
 const checkWorkspaceAccess = async (req, res, next) => {
@@ -103,11 +106,11 @@ router.post('/', auth(['client']), async (req, res) => {
       });
     }
 
-    // Verify the application exists and is accepted
+    // Verify the application exists and is accepted/awarded
     const application = await Application.findOne({ 
       _id: applicationId, 
       project: projectId,
-      status: 'accepted' 
+      status: { $in: ['accepted', 'awarded'] }
     }).populate('freelancer');
 
     if (!application) {
@@ -142,6 +145,14 @@ router.post('/', auth(['client']), async (req, res) => {
     await workspace.populate('client', 'fullName profilePicture email');
     await workspace.populate('freelancer', 'fullName profilePicture email skills');
     await workspace.populate('application', 'proposedRate coverLetter');
+
+    // Create timeline event for workspace creation
+    await createWorkspaceEvent(workspace, 'created', clientId, {
+      metadata: {
+        freelancerName: application.freelancer.fullName,
+        proposedRate: application.proposedRate
+      }
+    });
 
     console.log('✅ Workspace created successfully');
     res.status(201).json({
@@ -607,6 +618,20 @@ router.post('/:workspaceId/deliverables',
       console.log('📁 Files:', files ? files.length : 0);
       console.log('👤 User:', req.user);
 
+      // If there's an active escrow in this workspace, require a milestone to properly update escrow state
+      try {
+        const Escrow = require('../models/Escrow');
+        const activeEscrow = await Escrow.findOne({ workspace: workspaceId, status: 'active' });
+        if (activeEscrow && !milestone) {
+          return res.status(400).json({
+            success: false,
+            message: 'A milestone must be selected when an active escrow exists for this workspace.'
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Escrow check failed (non-critical):', e.message);
+      }
+
       const deliverable = new Deliverable({
         workspace: workspaceId,
         title,
@@ -651,21 +676,51 @@ router.post('/:workspaceId/deliverables',
       await deliverable.populate('submittedBy', 'fullName profilePicture email');
       await deliverable.populate('milestone', 'title order');
 
-      // If this deliverable is linked to a milestone, update escrow status
+      // If this deliverable is linked to a milestone, update escrow status and milestone deliveryStatus
       if (deliverable.milestone) {
         try {
-          const EscrowService = require('../services/escrowService');
-          await EscrowService.submitDeliverable(deliverable.milestone._id, req.user.userId, {
-            deliverableId: deliverable._id,
-            notes: submissionNotes,
-            attachments: deliverable.content.files || []
+          // Update milestone deliveryStatus to 'delivered'
+          const Milestone = require('../models/Milestone');
+          await Milestone.findByIdAndUpdate(deliverable.milestone._id, {
+            deliveryStatus: 'delivered',
+            submissionDate: new Date(),
+            submittedBy: req.user.userId
           });
-          console.log('✅ Escrow updated for deliverable submission');
+          console.log('✅ Milestone deliveryStatus updated to "delivered"');
+
+          // Update escrow deliverableSubmitted flag
+          await Escrow.findOneAndUpdate(
+            { milestone: deliverable.milestone._id },
+            { 
+              deliverableSubmitted: true,
+              deliverableSubmittedAt: new Date()
+            }
+          );
+          console.log('✅ Escrow deliverableSubmitted flag updated');
+
+          // Update escrow if it exists (using escrow service)
+          try {
+            const EscrowService = require('../services/escrowService');
+            await EscrowService.submitDeliverable(deliverable.milestone._id, req.user.userId, {
+              deliverableId: deliverable._id,
+              notes: submissionNotes,
+              attachments: deliverable.content.files || []
+            });
+            console.log('✅ Escrow service updated for deliverable submission');
+          } catch (serviceError) {
+            console.warn('⚠️ Escrow service update failed (non-critical):', serviceError.message);
+          }
         } catch (escrowError) {
           console.warn('⚠️ Escrow update failed (non-critical):', escrowError.message);
           // Don't fail the deliverable submission if escrow update fails
         }
       }
+
+      // Create timeline event for deliverable submission
+      const workspace = await Workspace.findById(workspaceId).populate('project');
+      await createDeliverableEvent(deliverable, 'submitted', req.user.userId, {
+        project: workspace.project._id
+      });
 
       console.log('✅ Deliverable submitted successfully');
       res.status(201).json({
@@ -765,6 +820,14 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
     await deliverable.save();
     await deliverable.populate('submittedBy reviewedBy', 'fullName profilePicture email');
     await deliverable.populate('milestone', 'title order');
+
+    // Create timeline event for deliverable review
+    const workspace = await Workspace.findById(req.params.workspaceId).populate('project');
+    const eventType = status === 'approved' ? 'approved' : status === 'revision-requested' ? 'revised' : 'rejected';
+    await createDeliverableEvent(deliverable, eventType, req.user.userId, {
+      project: workspace.project._id,
+      reviewNotes
+    });
 
     console.log('✅ Deliverable reviewed successfully');
     res.json({
@@ -946,6 +1009,261 @@ router.get('/:workspaceId/payments', auth(['client', 'freelancer']), checkWorksp
     });
   }
 });
+
+// ============================================
+// TIMELINE ROUTES
+// ============================================
+
+// GET /api/workspaces/:workspaceId/timeline - Get timeline events
+router.get('/:workspaceId/timeline', auth(['client', 'freelancer']), checkWorkspaceAccess, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { limit = 50, before, types } = req.query;
+
+    // Build query
+    const query = { workspace: workspaceId };
+    
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+    
+    if (types) {
+      const typeArray = types.split(',');
+      query.type = { $in: typeArray };
+    }
+
+    // Fetch stored events
+    const storedEvents = await TimelineEvent.find(query)
+      .populate('actor', 'fullName profilePicture')
+      .populate('relatedMilestone', 'title amount status')
+      .populate('relatedDeliverable', 'title status')
+      .populate('relatedEscrow', 'totalAmount status')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    // Fetch computed events (from existing data)
+    let computedEvents = await generateComputedEvents(workspaceId);
+    
+    // Apply type filter to computed events
+    if (types) {
+      const typeArray = types.split(',');
+      computedEvents = computedEvents.filter(event => typeArray.includes(event.type));
+    }
+
+    // Combine and sort
+    const allEvents = [
+      ...storedEvents.map(e => ({ ...e.toObject(), source: 'stored' })),
+      ...computedEvents
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      data: allEvents,
+      hasMore: allEvents.length >= parseInt(limit)
+    });
+  } catch (error) {
+    console.error('❌ Error fetching timeline:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch timeline',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/workspaces/:workspaceId/timeline - Create custom timeline event
+router.post('/:workspaceId/timeline', auth(['client', 'freelancer']), checkWorkspaceAccess, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { type, title, description, metadata } = req.body;
+    const userId = req.user.userId;
+    const workspace = req.workspace;
+
+    // Validate required fields
+    if (!type || !title) {
+      return res.status(400).json({
+        success: false,
+        message: 'Type and title are required'
+      });
+    }
+
+    // Only allow user-created event types
+    const allowedUserTypes = ['note.added', 'file.attached', 'status.updated'];
+    if (!allowedUserTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid event type for manual creation'
+      });
+    }
+
+    // Create event
+    const event = await TimelineEvent.create({
+      workspace: workspaceId,
+      project: workspace.project,
+      type,
+      title,
+      description,
+      actor: userId,
+      metadata: metadata || {},
+      source: 'user'
+    });
+
+    // Populate for response
+    await event.populate('actor', 'fullName profilePicture');
+
+    console.log('✅ Timeline event created:', event.type);
+    res.json({
+      success: true,
+      data: event
+    });
+  } catch (error) {
+    console.error('❌ Error creating timeline event:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create timeline event',
+      error: error.message
+    });
+  }
+});
+
+// Helper function to generate computed events from existing data
+async function generateComputedEvents(workspaceId) {
+  try {
+    const events = [];
+    const workspace = await Workspace.findById(workspaceId);
+    
+    if (!workspace) return events;
+
+    // Milestone events
+    const milestones = await Milestone.find({ workspace: workspaceId })
+      .sort({ createdAt: 1 });
+    
+    for (const milestone of milestones) {
+      events.push({
+        _id: `milestone-created-${milestone._id}`,
+        type: 'milestone.created',
+        title: `Milestone "${milestone.title}" created`,
+        description: `Amount: ₹${milestone.amount.toLocaleString()}`,
+        createdAt: milestone.createdAt,
+        source: 'computed',
+        metadata: { amount: milestone.amount, currency: milestone.currency },
+        relatedMilestone: milestone
+      });
+
+      if (milestone.status === 'approved') {
+        events.push({
+          _id: `milestone-approved-${milestone._id}`,
+          type: 'milestone.approved',
+          title: `Milestone "${milestone.title}" approved`,
+          description: 'Client approved this milestone',
+          createdAt: milestone.approvalDate || milestone.updatedAt,
+          source: 'computed',
+          relatedMilestone: milestone
+        });
+      }
+
+      if (milestone.status === 'rejected') {
+        events.push({
+          _id: `milestone-rejected-${milestone._id}`,
+          type: 'milestone.rejected',
+          title: `Milestone "${milestone.title}" rejected`,
+          description: milestone.rejectionReason || 'Client requested changes',
+          createdAt: milestone.updatedAt,
+          source: 'computed',
+          relatedMilestone: milestone
+        });
+      }
+    }
+
+    // Deliverable events
+    const deliverables = await Deliverable.find({ workspace: workspaceId })
+      .sort({ submissionDate: 1 });
+    
+    for (const deliverable of deliverables) {
+      events.push({
+        _id: `deliverable-submitted-${deliverable._id}`,
+        type: 'deliverable.submitted',
+        title: `Deliverable "${deliverable.title}" submitted`,
+        description: deliverable.submissionNotes || 'New deliverable submitted for review',
+        createdAt: deliverable.submissionDate,
+        source: 'computed',
+        relatedDeliverable: deliverable
+      });
+
+      if (deliverable.status === 'approved') {
+        events.push({
+          _id: `deliverable-approved-${deliverable._id}`,
+          type: 'deliverable.approved',
+          title: `Deliverable "${deliverable.title}" approved`,
+          description: deliverable.reviewNotes || 'Client approved this deliverable',
+          createdAt: deliverable.reviewDate || deliverable.updatedAt,
+          source: 'computed',
+          relatedDeliverable: deliverable
+        });
+      }
+
+      if (deliverable.status === 'revision-requested') {
+        events.push({
+          _id: `deliverable-revised-${deliverable._id}`,
+          type: 'deliverable.revised',
+          title: `Deliverable "${deliverable.title}" needs revision`,
+          description: deliverable.reviewNotes || 'Client requested changes',
+          createdAt: deliverable.reviewDate || deliverable.updatedAt,
+          source: 'computed',
+          relatedDeliverable: deliverable
+        });
+      }
+    }
+
+    // Escrow/Payment events
+    const escrows = await Escrow.find({ workspace: workspaceId })
+      .sort({ createdAt: 1 });
+    
+    for (const escrow of escrows) {
+      if (escrow.status === 'funded' || escrow.status === 'held') {
+        events.push({
+          _id: `escrow-funded-${escrow._id}`,
+          type: 'escrow.funded',
+          title: 'Payment held in escrow',
+          description: `₹${escrow.totalAmount.toLocaleString()} secured for milestone`,
+          createdAt: escrow.createdAt,
+          source: 'computed',
+          metadata: { amount: escrow.totalAmount },
+          relatedEscrow: escrow
+        });
+      }
+
+      if (escrow.status === 'released' || escrow.status === 'completed') {
+        events.push({
+          _id: `payment-completed-${escrow._id}`,
+          type: 'payment.completed',
+          title: 'Payment released to freelancer',
+          description: `₹${escrow.amountToFreelancer.toLocaleString()} transferred successfully`,
+          createdAt: escrow.releaseDate || escrow.updatedAt,
+          source: 'computed',
+          metadata: { amount: escrow.amountToFreelancer },
+          relatedEscrow: escrow
+        });
+      }
+    }
+
+    // Workspace created event
+    events.push({
+      _id: `workspace-created-${workspace._id}`,
+      type: 'workspace.created',
+      title: 'Project workspace created',
+      description: 'Collaboration workspace initialized',
+      createdAt: workspace.createdAt,
+      source: 'computed'
+    });
+
+    return events;
+  } catch (error) {
+    console.error('Error generating computed events:', error);
+    return [];
+  }
+}
 
 // Add multer error handling middleware
 router.use(handleMulterError);

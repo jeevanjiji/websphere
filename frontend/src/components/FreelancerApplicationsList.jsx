@@ -74,6 +74,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
     const statusConfig = {
       pending: { variant: 'warning', text: 'Pending Review', icon: ClockIcon },
       accepted: { variant: 'success', text: 'Accepted', icon: null },
+      awarded: { variant: 'success', text: 'Awarded', icon: null },
       rejected: { variant: 'error', text: 'Rejected', icon: ExclamationTriangleIcon },
       withdrawn: { variant: 'secondary', text: 'Withdrawn', icon: null }
     };
@@ -103,7 +104,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
   };
 
   const handleOpenChat = (application) => {
-    if (application.status === 'accepted' && onOpenChat) {
+    if ((application.status === 'accepted' || application.status === 'awarded') && onOpenChat) {
       onOpenChat(application);
     } else {
   toast('Chat is only available for accepted applications', { icon: '💬' });
@@ -239,7 +240,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
                       View Project
                     </Button>
                     
-                    {application.status === 'accepted' && (
+                    {(application.status === 'accepted' || application.status === 'awarded') && (
                       <Button
                         variant="primary"
                         size="small"

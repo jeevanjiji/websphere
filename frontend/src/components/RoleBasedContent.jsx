@@ -86,8 +86,10 @@ const RoleBasedContent = ({ onCardClick }) => {
   };
 
   // Modal handlers
-  const handleViewFreelancerProfile = (freelancer) => {
-    setSelectedFreelancer(freelancer);
+  const handleViewFreelancerProfile = (freelancerDisplay) => {
+    // Pass the original freelancer data to the modal, not the formatted display data
+    const freelancerData = freelancerDisplay.originalData || freelancerDisplay;
+    setSelectedFreelancer(freelancerData);
     setIsModalOpen(true);
   };
 
@@ -98,6 +100,7 @@ const RoleBasedContent = ({ onCardClick }) => {
 
   const handleHireFreelancer = (freelancer) => {
     handleCloseModal();
+    // Redirect to client dashboard when hiring
     onCardClick('client-freelancers', freelancer);
   };
 
@@ -237,6 +240,9 @@ const RoleBasedContent = ({ onCardClick }) => {
       rateDisplay = `₹${freelancer.profile.hourlyRate}/hr`;
     }
 
+    // Get last 2 portfolio items
+    const recentPortfolio = freelancer.portfolio?.slice(0, 2) || [];
+
     return {
       id: freelancer._id,
       title: freelancer.fullName,
@@ -244,10 +250,13 @@ const RoleBasedContent = ({ onCardClick }) => {
       budget: rateDisplay,
       timeline: `${freelancer.completedProjects || 0} projects completed`,
       skills: freelancer.skills?.slice(0, 4) || [],
-      client: `${freelancer.rating?.average?.toFixed(1) || 'New'} ⭐ (${freelancer.rating?.count || 0} reviews)`,
+      portfolio: recentPortfolio,
+      completedProjects: freelancer.completedProjects || 0,
       image: freelancer.profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=200&fit=crop&crop=center',
       icon: UserGroupIcon,
-      color: "from-green-500 to-emerald-600"
+      color: "from-green-500 to-emerald-600",
+      // Store the original freelancer data for the modal
+      originalData: freelancer
     };
   };
 
@@ -352,14 +361,35 @@ const RoleBasedContent = ({ onCardClick }) => {
                             </div>
                             <h3 className="heading-4 mb-1">{item.title}</h3>
                             <div className="flex items-center gap-1 mb-2">
-                              <StarIcon className="w-4 h-4 text-warning fill-current" />
-                              <span className="text-sm text-gray-medium">{item.client}</span>
+                              <span className="text-sm text-gray-medium">{item.timeline}</span>
                             </div>
                           </div>
 
                           {/* Basic Info Always Visible */}
                           <div className="space-y-3">
                             <p className="text-sm text-gray-medium line-clamp-2">{item.description}</p>
+                            
+                            {/* Show recent portfolio items if available */}
+                            {item.portfolio && item.portfolio.length > 0 && (
+                              <div className="grid grid-cols-2 gap-2 mt-3">
+                                {item.portfolio.map((portfolioItem, idx) => (
+                                  <div key={idx} className="aspect-video bg-gray-100 rounded overflow-hidden">
+                                    {portfolioItem.image ? (
+                                      <img 
+                                        src={portfolioItem.image} 
+                                        alt={portfolioItem.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
+                                        <BriefcaseIcon className="w-6 h-6 text-primary opacity-50" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
                             <div className="text-center">
                               <Button
                                 variant="primary"
@@ -396,13 +426,6 @@ const RoleBasedContent = ({ onCardClick }) => {
                                   <span className="text-sm font-medium">{item.timeline}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-medium">Rating:</span>
-                                  <div className="flex items-center gap-1">
-                                    <StarIcon className="w-4 h-4 text-warning fill-current" />
-                                    <span className="text-sm font-medium">{item.client}</span>
-                                  </div>
-                                </div>
-                                <div className="flex justify-between items-center">
                                   <span className="text-sm text-gray-medium">Rate:</span>
                                   <span className="text-sm font-bold text-primary">{item.budget}</span>
                                 </div>
@@ -434,7 +457,7 @@ const RoleBasedContent = ({ onCardClick }) => {
                                 size="small"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onCardClick('client-freelancers');
+                                  handleViewFreelancerProfile(item);
                                 }}
                                 className="w-full mt-4"
                               >
@@ -536,7 +559,7 @@ const RoleBasedContent = ({ onCardClick }) => {
               }}
             >
               {showProjectsForFreelancer ? 'Browse All Projects' : 
-               showFreelancersForClient ? (showAllFreelancers ? 'View Detailed Profiles' : 'Browse All Freelancers') : 
+               showFreelancersForClient ? (showAllFreelancers ? 'Go to Dashboard' : 'Browse All Freelancers') : 
                'Browse All Services'}
             </Button>
           </motion.div>

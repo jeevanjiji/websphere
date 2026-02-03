@@ -16,6 +16,15 @@ import { Card, Badge, Button } from './ui';
 const FreelancerProfileModal = ({ freelancer, isOpen, onClose, onHireFreelancer }) => {
   if (!freelancer) return null;
 
+  // Handle both API data format and display format
+  const fullName = freelancer.fullName || freelancer.title;
+  const profilePicture = freelancer.profilePicture || freelancer.image;
+  const bio = freelancer.bio || freelancer.description;
+  const hourlyRate = freelancer.hourlyRate 
+    ? `₹${freelancer.hourlyRate}/hr` 
+    : freelancer.budget || 'Rate negotiable';
+  const projectsCompleted = freelancer.completedProjects || 0;
+
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.8 },
     visible: { opacity: 1, scale: 1 },
@@ -65,17 +74,13 @@ const FreelancerProfileModal = ({ freelancer, isOpen, onClose, onHireFreelancer 
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg flex-shrink-0">
                     <img
-                      src={freelancer.image || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face'}
-                      alt={freelancer.title}
+                      src={profilePicture || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face'}
+                      alt={fullName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div className="flex-1">
-                    <h2 className="heading-3 mb-1">{freelancer.title}</h2>
-                    <div className="flex items-center gap-2 mb-2">
-                      <StarIcon className="w-5 h-5 text-yellow-300 fill-current" />
-                      <span className="text-white text-opacity-90">{freelancer.client}</span>
-                    </div>
+                    <h2 className="heading-3 mb-1">{fullName}</h2>
                     <div className="flex items-center gap-1 text-white text-opacity-80">
                       <CheckBadgeIcon className="w-4 h-4" />
                       <span className="text-sm">Verified Freelancer</span>
@@ -87,23 +92,18 @@ const FreelancerProfileModal = ({ freelancer, isOpen, onClose, onHireFreelancer 
               {/* Body */}
               <div className="p-6 space-y-6">
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <BriefcaseIcon className="w-6 h-6 text-primary mx-auto mb-1" />
-                    <div className="text-lg font-bold text-gray-dark">{freelancer.timeline}</div>
-                    <div className="text-xs text-gray-medium">Experience</div>
+                    <div className="text-lg font-bold text-gray-dark">
+                      {projectsCompleted}
+                    </div>
+                    <div className="text-xs text-gray-medium">Projects Completed</div>
                   </div>
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <CurrencyDollarIcon className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                    <div className="text-lg font-bold text-gray-dark">{freelancer.budget}</div>
+                    <div className="text-lg font-bold text-gray-dark">{hourlyRate}</div>
                     <div className="text-xs text-gray-medium">Hourly Rate</div>
-                  </div>
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <StarIcon className="w-6 h-6 text-yellow-500 mx-auto mb-1 fill-current" />
-                    <div className="text-lg font-bold text-gray-dark">
-                      {freelancer.client.split(' ')[0] || 'New'}
-                    </div>
-                    <div className="text-xs text-gray-medium">Rating</div>
                   </div>
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <ClockIcon className="w-6 h-6 text-blue-600 mx-auto mb-1" />
@@ -119,7 +119,7 @@ const FreelancerProfileModal = ({ freelancer, isOpen, onClose, onHireFreelancer 
                     About
                   </h3>
                   <p className="text-gray-medium leading-relaxed">
-                    {freelancer.description || 'Experienced professional ready to help with your projects.'}
+                    {bio || 'Experienced professional ready to help with your projects.'}
                   </p>
                 </div>
 
@@ -141,18 +141,62 @@ const FreelancerProfileModal = ({ freelancer, isOpen, onClose, onHireFreelancer 
                   </div>
                 )}
 
-                {/* Portfolio Preview */}
-                <div>
-                  <h3 className="heading-4 mb-3">Recent Work</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                      <span className="text-gray-medium text-sm">Portfolio Item 1</span>
-                    </div>
-                    <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                      <span className="text-gray-medium text-sm">Portfolio Item 2</span>
+                {/* Portfolio Preview - Show last 2 completed projects */}
+                {freelancer.portfolio && freelancer.portfolio.length > 0 && (
+                  <div>
+                    <h3 className="heading-4 mb-3">Recent Work</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {freelancer.portfolio.slice(0, 2).map((project, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                          {project.image ? (
+                            <div className="aspect-video bg-gray-200 overflow-hidden">
+                              <img 
+                                src={project.image} 
+                                alt={project.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="aspect-video bg-gradient-to-br from-primary/20 to-primary-dark/20 flex items-center justify-center">
+                              <BriefcaseIcon className="w-12 h-12 text-primary opacity-50" />
+                            </div>
+                          )}
+                          <div className="p-3">
+                            <h4 className="font-semibold text-gray-dark text-sm mb-1 line-clamp-1">
+                              {project.title}
+                            </h4>
+                            <p className="text-xs text-gray-medium line-clamp-2 mb-2">
+                              {project.description}
+                            </p>
+                            {project.technologies && project.technologies.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {project.technologies.slice(0, 3).map((tech, techIndex) => (
+                                  <span 
+                                    key={techIndex}
+                                    className="text-xs px-2 py-1 bg-primary/10 text-primary rounded"
+                                  >
+                                    {tech}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Show placeholder if no portfolio items */}
+                {(!freelancer.portfolio || freelancer.portfolio.length === 0) && (
+                  <div>
+                    <h3 className="heading-4 mb-3">Recent Work</h3>
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <BriefcaseIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-medium text-sm">No portfolio items yet</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Reviews Preview */}
                 <div>

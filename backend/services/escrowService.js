@@ -15,23 +15,52 @@ const razorpay = new Razorpay({
 class EscrowService {
   
   /**
+   * Get service charge percentage based on project budget tier
+   * Budget tiers:
+   * - Under ₹5,000: 8%
+   * - ₹5,000 - ₹20,000: 6%
+   * - ₹20,000 - ₹50,000: 5%
+   * - ₹50,000 - ₹1,00,000: 4%
+   * - Above ₹1,00,000: 3%
+   */
+  static getServiceChargePercentage(projectBudget) {
+    if (projectBudget < 5000) {
+      return 8; // 8% for small projects
+    } else if (projectBudget < 20000) {
+      return 6; // 6% for medium projects
+    } else if (projectBudget < 50000) {
+      return 5; // 5% for medium-large projects
+    } else if (projectBudget < 100000) {
+      return 4; // 4% for large projects
+    } else {
+      return 3; // 3% for very large projects
+    }
+  }
+  
+  /**
    * Calculate service charges and total amount
    */
-  static calculateServiceCharges(milestoneAmount, serviceChargePercentage = 5, fixedServiceCharge = 35) {
-    const percentageCharge = (milestoneAmount * serviceChargePercentage) / 100;
-    const totalServiceCharge = fixedServiceCharge; // Always use fixed ₹35 charge as requested
+  static calculateServiceCharges(milestoneAmount, projectBudget = null, serviceChargePercentage = null) {
+    // If projectBudget is provided, calculate percentage based on tier
+    // Otherwise use the provided percentage, or default to 5%
+    const chargePercentage = projectBudget 
+      ? this.getServiceChargePercentage(projectBudget)
+      : (serviceChargePercentage || 5);
+    
+    const totalServiceCharge = (milestoneAmount * chargePercentage) / 100;
     const totalAmount = milestoneAmount + totalServiceCharge;
     const amountToFreelancer = milestoneAmount; // Freelancer gets the milestone amount
     
     return {
       milestoneAmount,
       serviceCharge: totalServiceCharge,
-      serviceChargePercentage,
+      serviceChargePercentage: chargePercentage,
       totalAmount,
       amountToFreelancer,
       breakdown: {
-        percentageCharge,
-        fixedServiceCharge
+        projectBudget,
+        percentageCharge: totalServiceCharge,
+        appliedPercentage: chargePercentage
       }
     };
   }
@@ -75,11 +104,12 @@ class EscrowService {
         }
       }
 
-      // Calculate service charges
+      // Calculate service charges based on project budget tier
+      const projectBudget = milestone.workspace.project?.budgetAmount || null;
       const charges = this.calculateServiceCharges(
         milestone.amount,
-        milestone.serviceChargePercentage || 5,
-        35 // Fixed ₹35 per milestone
+        projectBudget,
+        null // Let it auto-calculate based on budget tier
       );
 
       // Create Razorpay order
@@ -264,6 +294,7 @@ class EscrowService {
       // Update milestone
       const milestone = await Milestone.findById(milestoneId);
       milestone.status = 'review';
+      milestone.deliveryStatus = 'delivered'; // Mark as delivered when freelancer submits
       milestone.submittedBy = freelancerId;
       milestone.submissionDate = new Date();
       milestone.submissionNotes = submissionData.notes || '';

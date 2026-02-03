@@ -394,7 +394,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
               </div>
             )}
 
-            {application.status === 'accepted' && (
+            {(application.status === 'accepted' || application.status === 'awarded') && (
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
                 <Button
                   variant="primary"

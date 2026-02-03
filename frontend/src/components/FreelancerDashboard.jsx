@@ -13,9 +13,7 @@ import {
 import { Button, Card, Badge } from './ui';
 import ProjectApplicationModal from './ProjectApplicationModal';
 import ChatInterface from './ChatInterface';
-import WorkspaceInterface from './WorkspaceInterface';
 import WorkspaceInterfaceFixed from './WorkspaceInterfaceFixed';
-import DebugWorkspaceInterface from './DebugWorkspaceInterface';
 import { formatChatListTime } from '../utils/dateUtils';
 
 const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
@@ -63,6 +61,13 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const [aiRecommendations, setAiRecommendations] = useState([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(true);
+
+  // Stats state
+  const [stats, setStats] = useState({
+    totalEarnings: 0,
+    hoursWorked: 0,
+    completedProjects: 0
+  });
 
   // Get user from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -185,6 +190,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       fetchMyApplications();
     } else if (activeTab === 'messages') {
       fetchChats();
+    } else if (activeTab === 'earnings') {
+      fetchFreelancerStats();
     }
   }, [activeTab]);
 
@@ -194,6 +201,33 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       fetchProjects(1, searchTerm, selectedSkills);
     }
   }, [showAllProjects]);
+
+  // Fetch freelancer stats
+  const fetchFreelancerStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:5000/api/freelancer/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setStats({
+          totalEarnings: data.stats.totalEarnings || 0,
+          hoursWorked: data.stats.hoursWorked || 0,
+          completedProjects: data.stats.completedProjects || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching freelancer stats:', error);
+    }
+  };
 
   // Fetch freelancer's applications
   const fetchMyApplications = async (page = 1) => {
@@ -223,8 +257,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         setApplications(data.applications);
         setPagination(data.pagination);
         
-        // Check workspace availability for accepted applications
-        const acceptedApps = data.applications.filter(app => app.status === 'accepted');
+        // Check workspace availability for accepted/awarded applications
+        const acceptedApps = data.applications.filter(app => app.status === 'accepted' || app.status === 'awarded');
         const workspaceChecks = {};
         
         for (const app of acceptedApps) {
@@ -461,8 +495,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     <span className="flex items-center gap-1">
                       <CurrencyDollarIcon className="h-4 w-4" />
                       {project.budgetType === 'hourly' 
-                        ? `$${project.budgetAmount}/hr` 
-                        : `$${project.budgetAmount}`}
+                        ? `Rs.${project.budgetAmount}/hr` 
+                        : `Rs.${project.budgetAmount}`}
                     </span>
                     {project.deadline && (
                       <span className="flex items-center gap-1">
@@ -751,6 +785,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
             const statusConfig = {
               pending: { variant: 'warning', text: 'Pending Review' },
               accepted: { variant: 'success', text: 'Accepted' },
+              awarded: { variant: 'success', text: 'Awarded' },
               rejected: { variant: 'error', text: 'Rejected' },
               withdrawn: { variant: 'secondary', text: 'Withdrawn' }
             };
@@ -814,7 +849,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                       </span>
                     </div>
                     
-                    {application.status === 'accepted' && (
+                    {(application.status === 'accepted' || application.status === 'awarded') && (
                       <div className="flex justify-end">
                         {/* Only show workspace button if workspace exists for this freelancer */}
                         {workspaceAvailability[application.project._id] && (
@@ -856,17 +891,17 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <CurrencyDollarIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Rs.0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Rs.{stats.totalEarnings.toLocaleString()}</h3>
         <p className="text-gray-600">Total Earnings</p>
       </div>
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <ClockIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">{stats.hoursWorked}</h3>
         <p className="text-gray-600">Hours Worked</p>
       </div>
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <StarIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">{stats.completedProjects}</h3>
         <p className="text-gray-600">Completed Projects</p>
       </div>
     </div>

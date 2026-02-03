@@ -7,6 +7,7 @@ import ChatInterface from './ChatInterface';
 import FileViewer from './FileViewerNew';
 import VideoCall from './VideoCall';
 import { PaymentModal } from './PaymentModal';
+import ProjectTimeline from './ProjectTimeline';
 import { 
   ChatBubbleLeftRightIcon, 
   FolderIcon, 
@@ -16,7 +17,8 @@ import {
   EyeIcon,
   VideoCameraIcon,
   ArrowDownTrayIcon,
-  XMarkIcon
+  XMarkIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 
 
@@ -817,30 +819,46 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     setCurrentCallId(null);
   };
 
-  const handleFileDownload = (file) => {
+  const handleFileDownload = async (file) => {
     try {
+      console.log('📥 Download file:', file);
       const token = localStorage.getItem('token');
       if (!token) {
         toast.error('Please log in to download files');
         return;
       }
 
-      // Create download URL using workspace ID
-      const downloadUrl = `http://localhost:5000/api/files/workspaces/${workspace._id}/download/${file._id || file.id}`;
+      // Use the file URL directly (from Cloudinary or storage)
+      const fileUrl = file.url;
       
-      // Create a temporary anchor element and trigger download
+      console.log('📥 File URL:', fileUrl);
+      
+      if (!fileUrl) {
+        console.error('❌ File URL not found in file object:', file);
+        toast.error('File URL not found. Please contact support.');
+        return;
+      }
+
+      // For files stored in Cloudinary or external storage, download directly
+      // Use fetch with blob to force download with correct filename
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
-      link.href = `${downloadUrl}?token=${token}`;
-      link.target = '_blank';
-      link.download = file.filename || 'download';
+      link.href = url;
+      link.download = file.originalName || file.filename || 'download';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
       toast.success('Download started!');
     } catch (error) {
-      console.error('Error downloading file:', error);
-      toast.error('Failed to download file');
+      console.error('❌ Error downloading file:', error);
+      toast.error('Failed to download file: ' + error.message);
     }
   };
 
@@ -884,6 +902,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 
   const tabs = [
     { id: 'chat', name: 'Chat', icon: ChatBubbleLeftRightIcon },
+    { id: 'timeline', name: 'Timeline', icon: ClockIcon },
     { id: 'files', name: 'Files', icon: FolderIcon },
     { id: 'milestones', name: 'Milestones', icon: FlagIcon },
     { id: 'deliverables', name: 'Deliverables', icon: ArchiveBoxIcon },
@@ -1001,6 +1020,15 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'timeline' && (
+            <div className="h-full">
+              <ProjectTimeline 
+                workspaceId={workspace._id} 
+                userRole={isClient ? 'client' : 'freelancer'}
+              />
             </div>
           )}
 
@@ -1280,32 +1308,99 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             )}
                           </div>
                           
-                          {/* Deliverable Files */}
-                          {deliverable.files && deliverable.files.length > 0 && (
-                            <div className="mt-3">
-                              <p className="text-sm font-medium text-gray-700 mb-2">Attached Files:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {deliverable.files.map((file, fileIndex) => (
-                                  <div key={fileIndex} className="flex items-center space-x-1">
-                                    <button
-                                      onClick={() => handleFileView(file)}
-                                      className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm"
-                                    >
-                                      <EyeIcon className="w-4 h-4 mr-1" />
-                                      {file.filename || `File ${fileIndex + 1}`}
-                                    </button>
-                                    <button
-                                      onClick={() => handleFileDownload(file)}
-                                      className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-sm"
-                                      title="Download file"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                ))}
+                          {/* Deliverable Files - Show for ALL deliverables */}
+                          {deliverable.content?.files && deliverable.content.files.length > 0 ? (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-3">📎 Attached Files ({deliverable.content.files.length}):</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {deliverable.content.files.map((file, fileIndex) => {
+                                  // Log file object for debugging
+                                  console.log('📎 Deliverable file:', file);
+                                  
+                                  // File URL is already complete (Cloudinary URL)
+                                  const fileUrl = file.url;
+                                  const fileExt = (file.filename || file.originalName || '').split('.').pop().toLowerCase();
+                                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExt);
+                                  const isPDF = fileExt === 'pdf';
+                                  const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(fileExt);
+                                  
+                                  console.log('📎 File details:', { fileUrl, fileExt, isImage, isPDF, isVideo });
+                                  
+                                  return (
+                                    <div key={fileIndex} className="border border-gray-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
+                                      {/* File Preview Thumbnail */}
+                                      <div className="bg-gray-50 h-32 flex items-center justify-center overflow-hidden">
+                                        {isImage ? (
+                                          <img 
+                                            src={fileUrl} 
+                                            alt={file.filename}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              e.target.style.display = 'none';
+                                              e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                          />
+                                        ) : isPDF ? (
+                                          <svg className="w-12 h-12 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                                          </svg>
+                                        ) : isVideo ? (
+                                          <svg className="w-12 h-12 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                                          </svg>
+                                        ) : (
+                                          <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                          </svg>
+                                        )}
+                                        <div className="hidden flex-col items-center justify-center text-gray-400">
+                                          <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* File Info */}
+                                      <div className="p-3">
+                                        <p className="text-xs font-medium text-gray-800 truncate mb-2" title={file.filename}>
+                                          {file.filename || `File ${fileIndex + 1}`}
+                                        </p>
+                                        {file.size && (
+                                          <p className="text-xs text-gray-500 mb-2">
+                                            {(file.size / 1024).toFixed(1)} KB
+                                          </p>
+                                        )}
+                                        
+                                        {/* Action Buttons */}
+                                        <div className="flex space-x-2">
+                                          <button
+                                            onClick={() => handleFileView(file)}
+                                            className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+                                          >
+                                            <EyeIcon className="w-3 h-3" />
+                                            <span>View</span>
+                                          </button>
+                                          <button
+                                            onClick={() => handleFileDownload(file)}
+                                            className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                            </svg>
+                                            <span>Download</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
+                            </div>
+                          ) : (
+                            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                              <p className="text-xs text-amber-700">
+                                ⚠️ No files attached to this deliverable
+                              </p>
                             </div>
                           )}
                         </div>
@@ -1318,7 +1413,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                             {deliverable.status || 'Pending Review'}
                           </span>
                           
-                          {/* Client Review Actions */}
+                          {/* Client Review Actions - For Pending Deliverables */}
                           {!isFreelancer && (deliverable.status === 'pending' || deliverable.status === 'submitted' || !deliverable.status) && (
                             <div className="flex space-x-2">
                               <button
@@ -1340,6 +1435,21 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                                 💬 Comment
                               </button>
                             </div>
+                          )}
+                          
+                          {/* View Details Button - For Already Reviewed Deliverables (Both Client & Freelancer) */}
+                          {(deliverable.status === 'approved' || deliverable.status === 'rejected') && deliverable.content?.files && deliverable.content.files.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setSelectedDeliverable(deliverable);
+                                setReviewAction('view');
+                                setDeliverableReviewNotes('');
+                                setShowDeliverableReview(true);
+                              }}
+                              className="px-3 py-1 bg-gray-600 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              👁️ View Details
+                            </button>
                           )}
                           
                           {/* Review Status Info */}
@@ -1375,9 +1485,11 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
               
               {(() => {
                 const now = new Date();
+                // Only consider approved or paid milestones; exclude rejected
                 const payableMilestones = milestones.filter(m => {
                   // Exclude already paid milestones
                   if (m.paymentStatus === 'completed' || m.status === 'paid') return false;
+                  if (m.status === 'rejected') return false;
                   
                   if (m.status === 'approved') return true;
                   if (m.paymentDueDate) {
@@ -1388,7 +1500,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                 });
                 
                 const paidMilestones = milestones.filter(m => 
-                  m.paymentStatus === 'completed' || m.status === 'paid'
+                  (m.paymentStatus === 'completed' || m.status === 'paid') && m.status !== 'rejected'
                 );
                 return (
                   <div>
@@ -1615,6 +1727,8 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       {(showMilestoneForm || editingMilestone) && (
         <MilestoneForm
           milestone={editingMilestone}
+          workspace={workspace}
+          milestones={milestones}
           onSubmit={editingMilestone ? 
             (data) => updateMilestone(editingMilestone._id, data) : 
             createMilestone
@@ -1703,11 +1817,13 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       {/* Deliverable Review Modal */}
       {showDeliverableReview && selectedDeliverable && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-6">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b flex-shrink-0">
+              <div className="flex justify-between items-start">
                 <h2 className="text-xl font-semibold">
-                  {reviewAction === 'approve' ? 'Approve' : 'Decline'} Deliverable
+                  {reviewAction === 'view' ? 'Deliverable Details' :
+                   reviewAction === 'approve' ? 'Approve Deliverable' : 'Decline Deliverable'}
                 </h2>
                 <button 
                   onClick={closeDeliverableReview}
@@ -1716,43 +1832,15 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
+            </div>
 
-              {/* Deliverable Preview */}
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Deliverable Info */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                 <h3 className="font-medium text-lg mb-2">{selectedDeliverable.title}</h3>
                 <p className="text-gray-600 text-sm mb-3">{selectedDeliverable.description}</p>
                 
-                {/* Files Preview */}
-                {selectedDeliverable.files && selectedDeliverable.files.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Attached Files:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedDeliverable.files.map((file, index) => (
-                        <div key={index} className="flex items-center space-x-1">
-                          <button
-                            onClick={() => handleFileView(file)}
-                            className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm"
-                          >
-                            <EyeIcon className="w-4 h-4 mr-1" />
-                            {file.filename || `File ${index + 1}`}
-                          </button>
-                          <a
-                            href={`http://localhost:5000${file.url}`}
-                            download={file.originalName || file.filename}
-                            className="inline-flex items-center px-2 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors text-sm"
-                            title="Download file"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Submission Info */}
                 <div className="mt-3 text-xs text-gray-500">
                   <div>Submitted: {new Date(selectedDeliverable.submissionDate).toLocaleString()}</div>
                   {selectedDeliverable.submissionNotes && (
@@ -1763,43 +1851,181 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                 </div>
               </div>
 
-              {/* Review Form */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {reviewAction === 'approve' ? 'Approval Comments' : 'Reason for Decline'} (Optional)
-                </label>
-                <textarea
-                  value={deliverableReviewNotes}
-                  onChange={(e) => setDeliverableReviewNotes(e.target.value)}
-                  className="w-full h-32 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder={
-                    reviewAction === 'approve' 
-                      ? "Great work! The deliverable meets all requirements..."
-                      : "Please revise the following items..."
-                  }
-                />
-              </div>
+              {/* Files Preview with In-Browser Display */}
+              {selectedDeliverable.content?.files && selectedDeliverable.content.files.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-sm font-medium text-gray-700 mb-3">📎 Attached Files ({selectedDeliverable.content.files.length}):</p>
+                  <div className="space-y-4">
+                    {selectedDeliverable.content.files.map((file, index) => {
+                      // File URL is already complete (Cloudinary URL)
+                      const fileUrl = file.url;
+                      const fileExt = (file.filename || '').split('.').pop().toLowerCase();
+                      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExt);
+                      const isPDF = fileExt === 'pdf';
+                      const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(fileExt);
+                      
+                      return (
+                        <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                          {/* File Header */}
+                          <div className="bg-gray-100 px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium text-sm text-gray-800">
+                                {file.filename || `File ${index + 1}`}
+                              </span>
+                              {file.size && (
+                                <span className="text-xs text-gray-500">
+                                  ({(file.size / 1024).toFixed(1)} KB)
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm"
+                              >
+                                <EyeIcon className="w-4 h-4 mr-1" />
+                                Open
+                              </a>
+                              <button
+                                onClick={() => handleFileDownload(file)}
+                                className="inline-flex items-center px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors text-sm"
+                              >
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                Download
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* File Preview */}
+                          <div className="bg-white">
+                            {isImage && (
+                              <div className="p-4 flex justify-center bg-gray-50">
+                                <img 
+                                  src={fileUrl} 
+                                  alt={file.filename}
+                                  className="max-h-96 max-w-full object-contain rounded shadow-lg"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                                <div className="hidden flex-col items-center justify-center p-8 text-gray-500">
+                                  <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <p className="text-sm">Unable to load preview</p>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {isPDF && (
+                              <div className="h-96">
+                                <iframe 
+                                  src={fileUrl}
+                                  className="w-full h-full border-0"
+                                  title={file.filename}
+                                />
+                              </div>
+                            )}
+                            
+                            {isVideo && (
+                              <div className="p-4 flex justify-center bg-black">
+                                <video 
+                                  controls 
+                                  className="max-h-96 max-w-full rounded"
+                                  preload="metadata"
+                                >
+                                  <source src={fileUrl} type={`video/${fileExt}`} />
+                                  Your browser does not support video playback.
+                                </video>
+                              </div>
+                            )}
+                            
+                            {!isImage && !isPDF && !isVideo && (
+                              <div className="p-8 flex flex-col items-center justify-center text-gray-500 bg-gray-50">
+                                <svg className="w-16 h-16 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                <p className="text-sm font-medium mb-1">Preview not available</p>
+                                <p className="text-xs text-gray-400">Click "Open" or "Download" to view this file</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {(!selectedDeliverable.content?.files || selectedDeliverable.content.files.length === 0) && (
+                <div className="mb-6 p-8 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                  <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm text-gray-500">No files attached to this deliverable</p>
+                </div>
+              )}
 
-              {/* Action Buttons */}
+              {/* Review Form - Only show for approve/decline actions, not for view mode */}
+              {reviewAction !== 'view' && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {reviewAction === 'approve' ? 'Approval Comments' : 'Reason for Decline'} (Optional)
+                  </label>
+                  <textarea
+                    value={deliverableReviewNotes}
+                    onChange={(e) => setDeliverableReviewNotes(e.target.value)}
+                    className="w-full h-24 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={
+                      reviewAction === 'approve' 
+                        ? "Great work! The deliverable meets all requirements..."
+                        : "Please revise the following items..."
+                    }
+                  />
+                </div>
+              )}
+              
+              {/* Show review notes if viewing already reviewed deliverable */}
+              {reviewAction === 'view' && selectedDeliverable.reviewNotes && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800 mb-2">Review Notes:</p>
+                  <p className="text-sm text-gray-700">{selectedDeliverable.reviewNotes}</p>
+                  {selectedDeliverable.reviewDate && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Reviewed on: {new Date(selectedDeliverable.reviewDate).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Action Buttons */}
+            <div className="p-6 border-t flex-shrink-0 bg-gray-50">
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={closeDeliverableReview}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  disabled={processingReview}
+                  className="px-6 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
                 >
-                  Cancel
+                  {reviewAction === 'view' ? 'Close' : 'Cancel'}
                 </button>
-                <button
-                  onClick={submitDeliverableReview}
-                  className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
-                    reviewAction === 'approve' 
-                      ? 'bg-green-600 hover:bg-green-700' 
-                      : 'bg-red-600 hover:bg-red-700'
-                  } disabled:opacity-50`}
-                  disabled={processingReview}
-                >
-                  {processingReview ? 'Processing...' : (reviewAction === 'approve' ? 'Approve Deliverable' : 'Decline Deliverable')}
-                </button>
+                {reviewAction !== 'view' && (
+                  <button
+                    onClick={submitDeliverableReview}
+                    className={`px-6 py-2 rounded-md text-sm font-medium text-white ${
+                      reviewAction === 'approve' 
+                        ? 'bg-green-600 hover:bg-green-700' 
+                        : 'bg-red-600 hover:bg-red-700'
+                    } disabled:opacity-50 shadow-md`}
+                    disabled={processingReview}
+                  >
+                    {processingReview ? 'Processing...' : (reviewAction === 'approve' ? '✓ Approve Deliverable' : '✗ Decline Deliverable')}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1826,9 +2052,9 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                 <div className="text-sm text-gray-600 mb-1">💼 Deliverable</div>
                 <div className="font-medium text-sm">{deliverableForChat.title}</div>
                 <div className="text-xs text-gray-500 mt-1">{deliverableForChat.description}</div>
-                {deliverableForChat.files && deliverableForChat.files.length > 0 && (
+                {deliverableForChat.content?.files && deliverableForChat.content.files.length > 0 && (
                   <div className="text-xs text-gray-500 mt-1">
-                    📎 {deliverableForChat.files.length} file(s) attached
+                    📎 {deliverableForChat.content.files.length} file(s) attached
                   </div>
                 )}
               </div>
@@ -1847,7 +2073,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
 };
 
 // Milestone Form Component
-const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
+const MilestoneForm = ({ milestone, workspace, milestones, onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
     title: milestone?.title || '',
     description: milestone?.description || '',
@@ -1856,6 +2082,17 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
     paymentDueDate: milestone?.paymentDueDate ? new Date(milestone.paymentDueDate).toISOString().split('T')[0] : '',
     requirements: milestone?.requirements || []
   });
+
+  // Calculate budget information
+  const projectBudget = workspace?.project?.budgetAmount || 0;
+  const totalExistingMilestones = milestones
+    ?.filter(m => m.status !== 'rejected') // Exclude rejected milestones from budget calculation
+    ?.filter(m => !milestone || m._id !== milestone._id) // Exclude current milestone if editing
+    .reduce((sum, m) => sum + (Number(m.amount) || 0), 0) || 0;
+  const remainingBudget = projectBudget - totalExistingMilestones;
+  const currentAmount = Number(formData.amount) || 0;
+  const budgetAfterThis = remainingBudget - currentAmount;
+  const isOverBudget = currentAmount > remainingBudget;
 
   // Update form data when milestone prop changes
   useEffect(() => {
@@ -1883,6 +2120,13 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
       toast.error('Please fill in all required fields');
       return;
     }
+    
+    // Budget validation
+    if (isOverBudget) {
+      toast.error(`Amount exceeds remaining budget of ₹${remainingBudget.toLocaleString()}`);
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -1899,6 +2143,47 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Budget Information Banner */}
+          {projectBudget > 0 && (
+            <div className={`p-4 rounded-lg border-2 ${
+              isOverBudget 
+                ? 'bg-red-50 border-red-300' 
+                : budgetAfterThis < projectBudget * 0.1 
+                  ? 'bg-yellow-50 border-yellow-300' 
+                  : 'bg-blue-50 border-blue-300'
+            }`}>
+              <div className="text-sm space-y-2">
+                <div className="flex justify-between items-center font-medium">
+                  <span>Project Budget:</span>
+                  <span className="text-gray-900">₹{projectBudget.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Already Allocated:</span>
+                  <span className="text-gray-700">₹{totalExistingMilestones.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center font-medium border-t pt-2">
+                  <span>Available Budget:</span>
+                  <span className={isOverBudget ? 'text-red-600' : 'text-green-600'}>
+                    ₹{remainingBudget.toLocaleString()}
+                  </span>
+                </div>
+                {currentAmount > 0 && (
+                  <div className="flex justify-between items-center text-xs border-t pt-2">
+                    <span>After this milestone:</span>
+                    <span className={budgetAfterThis < 0 ? 'text-red-600 font-bold' : 'text-gray-600'}>
+                      ₹{budgetAfterThis.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {isOverBudget && (
+                  <div className="text-red-600 text-xs mt-2 font-medium">
+                    ⚠️ Amount exceeds available budget by ₹{(currentAmount - remainingBudget).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Title *
@@ -1928,14 +2213,30 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Amount (₹) *
+              {projectBudget > 0 && (
+                <span className="text-xs text-gray-500 ml-2">
+                  (Max: ₹{remainingBudget.toLocaleString()})
+                </span>
+              )}
             </label>
             <input
               type="number"
               value={formData.amount}
               onChange={(e) => setFormData({...formData, amount: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${
+                isOverBudget 
+                  ? 'border-red-500 focus:ring-red-500' 
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
+              min="0"
+              max={remainingBudget > 0 ? remainingBudget : undefined}
               required
             />
+            {isOverBudget && (
+              <p className="text-red-600 text-xs mt-1">
+                This amount exceeds the available budget
+              </p>
+            )}
           </div>
 
           <div>
@@ -1973,7 +2274,13 @@ const MilestoneForm = ({ milestone, onSubmit, onClose }) => {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className={`flex-1 px-4 py-2 text-white rounded-md ${
+                isOverBudget 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+              disabled={isOverBudget}
+              title={isOverBudget ? 'Amount exceeds available budget' : ''}
             >
               {milestone ? 'Update' : 'Create'}
             </button>
@@ -2059,7 +2366,7 @@ const DeliverableForm = ({ milestones, onSubmit, onClose, submitting }) => {
               <option value="">Select milestone (optional)</option>
               {milestones.map((milestone) => (
                 <option key={milestone._id} value={milestone._id}>
-                  {milestone.title} - ₹{milestone.amount}
+                  {milestone.title} - ₹{milestone.amount} ({milestone.status})
                 </option>
               ))}
             </select>
