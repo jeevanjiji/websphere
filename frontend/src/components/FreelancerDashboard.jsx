@@ -837,6 +837,21 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     </div>
                   </div>
 
+                  {/* Start & Due dates for awarded/accepted applications */}
+                  {(application.status === 'accepted' || application.status === 'awarded') && application.project?.deadline && (
+                    <div className="flex items-center gap-3 text-xs mb-3 px-1">
+                      <span className="text-gray-500">
+                        Started: {new Date(application.project.awardedAt || application.createdAt).toLocaleDateString()}
+                      </span>
+                      <span className={`font-medium ${
+                        new Date(application.project.deadline) < new Date() ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        Due: {new Date(application.project.deadline).toLocaleDateString()}
+                        {new Date(application.project.deadline) < new Date() && ' (overdue)'}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">

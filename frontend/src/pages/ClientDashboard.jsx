@@ -131,30 +131,18 @@ const ClientDashboard = () => {
     localStorage.setItem('client-tour-completed', 'true');
   };
 
-  const handleApplicationResponse = async (applicationId, status) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/applications/${applicationId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update application');
-      }
-
-      const data = await response.json();
-      if (status === 'accepted' && data.chatId) {
-        toast.success('Application accepted! Chat has been created.');
-      }
-      fetchMyProjects();
-    } catch (error) {
-      console.error('Error updating application:', error);
-      toast.error('Failed to update application');
+  const handleApplicationResponse = async (application, chatCreated) => {
+    // The ProjectApplicationsList already handles the API call,
+    // so we just need to refresh the project list to reflect status changes
+    fetchMyProjects();
+    
+    // Update selected project status if the response was an accept/award
+    if (application?.status === 'awarded' && selectedProject) {
+      setSelectedProject(prev => prev ? { ...prev, status: 'awarded' } : prev);
+    }
+    
+    if (chatCreated) {
+      toast.success('Project awarded! A chat and workspace have been created.');
     }
   };
 
@@ -169,6 +157,7 @@ const ClientDashboard = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       open: { variant: 'success', text: 'Open' },
+      awarded: { variant: 'info', text: 'Awarded' },
       in_progress: { variant: 'warning', text: 'In Progress' },
       completed: { variant: 'primary', text: 'Completed' },
       cancelled: { variant: 'error', text: 'Cancelled' }
@@ -240,22 +229,52 @@ const ClientDashboard = () => {
 
             {/* Footer Section - Always at bottom */}
             <div className="flex justify-between items-center h-10 flex-shrink-0">
-              <span className="text-sm text-gray-500 flex-shrink-0 truncate">
-                {project.applicationsCount || 0} applications
-              </span>
+              {project.status === 'open' ? (
+                <span className="text-sm text-gray-500 flex-shrink-0 truncate">
+                  {project.applicationsCount || 0} applications
+                </span>
+              ) : project.status === 'awarded' || project.status === 'in_progress' ? (
+                <span className="text-sm text-green-600 flex-shrink-0 truncate font-medium">
+                  Freelancer assigned
+                </span>
+              ) : project.status === 'completed' ? (
+                <span className="text-sm text-purple-600 flex-shrink-0 truncate font-medium">
+                  Project finished
+                </span>
+              ) : (
+                <span className="text-sm text-gray-500 flex-shrink-0 truncate">
+                  {project.status}
+                </span>
+              )}
               <div className="flex gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedProject(project);
-                    setActiveTab('applications');
-                  }}
-                  className="whitespace-nowrap text-xs px-2 py-1"
-                >
-                  <EyeIcon className="h-4 w-4 mr-1" />
-                  View
-                </Button>
+                {project.status === 'open' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setActiveTab('applications');
+                    }}
+                    className="whitespace-nowrap text-xs px-2 py-1"
+                  >
+                    <EyeIcon className="h-4 w-4 mr-1" />
+                    Applications
+                  </Button>
+                )}
+                {(project.status === 'awarded' || project.status === 'in_progress' || project.status === 'completed') && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setActiveTab('applications');
+                    }}
+                    className="whitespace-nowrap text-xs px-2 py-1"
+                  >
+                    <EyeIcon className="h-4 w-4 mr-1" />
+                    View Details
+                  </Button>
+                )}
               </div>
             </div>
           </Card>

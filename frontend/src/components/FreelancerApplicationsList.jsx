@@ -133,11 +133,11 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
         </div>
 
         {/* Status Filter */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
             { key: 'all', label: 'All', count: applications.length },
             { key: 'pending', label: 'Pending', count: applications.filter(a => a.status === 'pending').length },
-            { key: 'accepted', label: 'Accepted', count: applications.filter(a => a.status === 'accepted').length },
+            { key: 'awarded', label: 'Awarded', count: applications.filter(a => a.status === 'awarded' || a.status === 'accepted').length },
             { key: 'rejected', label: 'Rejected', count: applications.filter(a => a.status === 'rejected').length }
           ].map((filterOption) => (
             <button

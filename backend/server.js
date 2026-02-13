@@ -20,9 +20,13 @@ const EscrowScheduler = require('./jobs/escrowScheduler');
 
 const app  = express();
 const server = http.createServer(app);
+const CORS_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'];
+
 const io = socketIo(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: CORS_ORIGINS,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -35,7 +39,7 @@ const PORT = process.env.PORT || 5000;
 ────────────────────────────────────────── */
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: CORS_ORIGINS,
     credentials: true
   })
 );
@@ -44,7 +48,7 @@ app.use(
   app.set('io', io);
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'your_session_secret_key',
+    secret: process.env.SESSION_SECRET || process.env.JWT_SECRET,
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
@@ -234,6 +238,15 @@ try {
   console.log('✅ Matching router connected → /api/matching');
 } catch (err) {
   console.error('❌ Failed to load matching router:', err.message);
+}
+
+// AI Assistant router (workspace chatbot with RAG)
+try {
+  const aiRouter = require('./routes/ai');
+  app.use('/api/workspace', aiRouter);
+  console.log('✅ AI Assistant router connected → /api/workspace/:workspaceId/ask-ai');
+} catch (err) {
+  console.error('❌ Failed to load AI assistant router:', err.message);
 }
 
 /* ──────────────────────────────────────────

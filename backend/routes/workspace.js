@@ -68,7 +68,7 @@ router.get('/', auth(['client', 'freelancer']), async (req, res) => {
         { freelancer: userId }
       ]
     })
-    .populate('project', 'title description budget timeline status')
+    .populate('project', 'title description budgetAmount budgetType deadline status createdAt')
     .populate('client', 'fullName profilePicture email')
     .populate('freelancer', 'fullName profilePicture email skills')
     .populate('application', 'proposedRate coverLetter')
@@ -135,13 +135,13 @@ router.post('/', auth(['client']), async (req, res) => {
       client: clientId,
       freelancer: application.freelancer._id,
       application: applicationId,
-      expectedEndDate: project.timeline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days default
+      expectedEndDate: project.deadline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days default
     });
 
     await workspace.save();
 
     // Populate the workspace for response
-    await workspace.populate('project', 'title description budget timeline');
+    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt');
     await workspace.populate('client', 'fullName profilePicture email');
     await workspace.populate('freelancer', 'fullName profilePicture email skills');
     await workspace.populate('application', 'proposedRate coverLetter');
@@ -189,7 +189,7 @@ router.get('/project/:projectId', auth(['client', 'freelancer']), async (req, re
     console.log('🔍 Query:', JSON.stringify(query, null, 2));
 
     const workspace = await Workspace.findOne(query)
-    .populate('project', 'title description budget budgetAmount category timeline status')
+    .populate('project', 'title description budgetAmount budgetType category categoryName deadline status createdAt')
     .populate('client', 'fullName profilePicture email')
     .populate('freelancer', 'fullName profilePicture email skills')
     .populate('application', 'proposedRate coverLetter');
@@ -249,7 +249,7 @@ router.get('/:workspaceId', auth(['client', 'freelancer']), checkWorkspaceAccess
     const workspace = req.workspace;
     
     // Populate all related data
-    await workspace.populate('project', 'title description budget timeline status');
+    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt');
     await workspace.populate('client', 'fullName profilePicture email');
     await workspace.populate('freelancer', 'fullName profilePicture email skills');
     await workspace.populate('application', 'proposedRate coverLetter');
@@ -303,12 +303,33 @@ router.put('/:workspaceId/status', auth(['client', 'freelancer']), checkWorkspac
       });
     }
 
+    // If marking completed, ensure milestones are actually finished
+    if (status === 'completed') {
+      const milestones = await Milestone.find({ workspace: workspace._id }).select('status paymentStatus').lean();
+      if (milestones.length > 0) {
+        const finishedStatuses = ['approved', 'paid'];
+        const finishedPaymentStatuses = ['completed'];
+        const incomplete = milestones.filter(m => !finishedStatuses.includes(m.status) && !finishedPaymentStatuses.includes(m.paymentStatus));
+        if (incomplete.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot complete project until all milestones are finished. ${incomplete.length} milestone(s) still pending.`
+          });
+        }
+      }
+
+      workspace.actualEndDate = new Date();
+
+      // Keep Project status in sync so it doesn't stay "open" forever
+      await Project.findByIdAndUpdate(
+        workspace.project,
+        { status: 'completed' },
+        { new: false }
+      );
+    }
+
     workspace.status = status;
     workspace.lastActivity = new Date();
-    
-    if (status === 'completed') {
-      workspace.actualEndDate = new Date();
-    }
 
     await workspace.save();
 
@@ -487,6 +508,23 @@ router.post('/:workspaceId/files',
 
       const uploadedFiles = [];
 
+      // Helper: should we extract text for RAG?
+      const isTextFile = (f) => {
+        const name = (f?.originalname || '').toLowerCase();
+        const type = (f?.mimetype || '').toLowerCase();
+        if (type.startsWith('text/')) return true;
+        if (type.includes('json') || type.includes('xml') || type.includes('csv')) return true;
+        if (type.includes('javascript') || type.includes('typescript')) return true;
+        if (name.match(/\.(md|txt|csv|json|xml|js|ts|jsx|tsx|py|java|c|cpp|html|css|env|yml|yaml)$/)) return true;
+        return false;
+      };
+
+      const extractText = (buffer) => {
+        if (!buffer) return null;
+        const text = buffer.toString('utf8');
+        return text.length > 50000 ? text.slice(0, 50000) : text;
+      };
+
       for (const file of files) {
         try {
           // Additional file size validation before Cloudinary upload
@@ -506,6 +544,9 @@ router.post('/:workspaceId/files',
             transformation: {}
           });
 
+          // Extract text for RAG if this is a text-like file
+          const extracted = isTextFile(file) ? extractText(file.buffer) : null;
+
           const workspaceFile = new WorkspaceFile({
             workspace: workspaceId,
             filename: cloudinaryResult.public_id,
@@ -517,6 +558,9 @@ router.post('/:workspaceId/files',
             folder,
             description,
             tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+            extractedText: extracted,
+            extractedTextUpdatedAt: extracted ? new Date() : null,
+            extractedTextSource: extracted ? 'upload-buffer' : 'none',
             uploadedBy: req.user.userId // Fixed: use userId instead of id
           });
 
@@ -644,13 +688,42 @@ router.post('/:workspaceId/deliverables',
 
       // Handle different content types
       if (files && files.length > 0) {
-        deliverable.content.files = files.map(file => ({
-          filename: file.filename,
-          originalName: file.originalname,
-          url: file.path,
-          size: file.size,
-          mimeType: file.mimetype
-        }));
+        console.log('📤 Processing uploaded files:', files.map(f => ({
+          filename: f.filename,
+          originalname: f.originalname,
+          path: f.path,
+          size: f.size,
+          mimetype: f.mimetype
+        })));
+        
+        // Upload files to Cloudinary
+        const { uploadToCloudinary } = require('../utils/cloudinaryConfig');
+        const uploadedFiles = [];
+        
+        for (const file of files) {
+          try {
+            const result = await uploadToCloudinary(file.buffer, {
+              folder: 'deliverables',
+              resource_type: 'auto', // auto-detect file type
+              format: 'auto'
+            });
+            
+            uploadedFiles.push({
+              filename: file.filename || result.public_id,
+              originalName: file.originalname,
+              url: result.secure_url,
+              size: file.size,
+              mimeType: file.mimetype
+            });
+          } catch (error) {
+            console.error('❌ Error uploading file to Cloudinary:', error);
+            throw new Error(`Failed to upload ${file.originalname}: ${error.message}`);
+          }
+        }
+        
+        deliverable.content.files = uploadedFiles;
+        
+        console.log('💾 Deliverable files to be saved:', deliverable.content.files);
       }
 
       if (links) {
@@ -721,6 +794,16 @@ router.post('/:workspaceId/deliverables',
       await createDeliverableEvent(deliverable, 'submitted', req.user.userId, {
         project: workspace.project._id
       });
+
+      // Emit socket event to notify client in real-time
+      const io = req.app.get('io');
+      if (io) {
+        io.to(workspaceId).emit('deliverable-submitted', {
+          deliverable,
+          workspaceId
+        });
+        console.log('📡 Socket event emitted: deliverable-submitted');
+      }
 
       console.log('✅ Deliverable submitted successfully');
       res.status(201).json({

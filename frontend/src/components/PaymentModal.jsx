@@ -11,7 +11,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
 
       // Create escrow payment order
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/escrow/create', {
+      const response = await fetch('/api/payments/escrow/create', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -34,7 +34,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
 
       // Initialize Razorpay payment with minimal config to show all default methods
       const options = {
-        key: 'rzp_test_RKKI5YvBWNfh2o', // Use direct test key to ensure it's working
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: data.data.amount,
         currency: data.data.currency,
         name: 'WebSphere Payments',
@@ -50,7 +50,7 @@ const PaymentModal = ({ milestone, isOpen, onClose, onPaymentSuccess }) => {
         handler: async function (response) {
           try {
             // Verify escrow payment
-            const verifyResponse = await fetch('http://localhost:5000/api/payments/escrow/verify', {
+            const verifyResponse = await fetch('/api/payments/escrow/verify', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,

@@ -324,7 +324,7 @@ router.post('/register', async (req, res) => {
       emailSent,
       email: savedPendingUser.email, // For display purposes only
       devVerificationUrl: !emailSent
-        ? `http://localhost:5000/api/auth/dev-verify/${savedPendingUser.email}`
+        ? `${process.env.BACKEND_URL || 'http://localhost:' + (process.env.PORT || 5000)}/api/auth/dev-verify/${savedPendingUser.email}`
         : null
     });
 

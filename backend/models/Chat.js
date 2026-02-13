@@ -82,6 +82,14 @@ const messageSchema = new mongoose.Schema(
       timeline: String,
       description: String
     },
+    // Offer negotiation status
+    offerStatus: {
+      type: String,
+      enum: ['pending', 'accepted', 'declined'],
+      default: function() {
+        return this.messageType === 'offer' ? 'pending' : undefined;
+      }
+    },
     // Message status
     readBy: [{
       user: {
@@ -93,6 +101,22 @@ const messageSchema = new mongoose.Schema(
         default: Date.now
       }
     }],
+    // AI-generated summary for long messages (shown to freelancers)
+    aiSummary: {
+      type: String,
+      default: null
+    },
+    aiActionItems: [{
+      type: String
+    }],
+    aiGeneratedAt: {
+      type: Date,
+      default: null
+    },
+    aiModel: {
+      type: String,
+      default: null
+    },
     edited: {
       type: Boolean,
       default: false

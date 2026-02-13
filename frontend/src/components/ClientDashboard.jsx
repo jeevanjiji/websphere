@@ -117,35 +117,18 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     localStorage.setItem('client-tour-completed', 'true');
   };
 
-  const handleApplicationResponse = async (applicationId, status) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/applications/${applicationId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update application');
-      }
-
-      const data = await response.json();
-      if (status === 'accepted') {
-        if (data.chatId) {
-          toast.success('Application accepted! Chat has been created.');
-        }
-        if (data.workspaceId) {
-          toast.success('Workspace created successfully!');
-        }
-      }
-      fetchMyProjects();
-    } catch (error) {
-      console.error('Error updating application:', error);
-      toast.error('Failed to update application');
+  const handleApplicationResponse = async (application, chatCreated) => {
+    // The ProjectApplicationsList already makes the API call,
+    // just refresh the projects list to reflect updated statuses
+    fetchMyProjects();
+    
+    // Update selected project status if the response was an award
+    if (application?.status === 'awarded' && selectedProject) {
+      setSelectedProject(prev => prev ? { ...prev, status: 'awarded' } : prev);
+    }
+    
+    if (chatCreated) {
+      toast.success('Project awarded! A chat and workspace have been created.');
     }
   };
 
@@ -169,6 +152,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       open: { variant: 'success', text: 'Open' },
+      awarded: { variant: 'info', text: 'Awarded' },
       in_progress: { variant: 'warning', text: 'In Progress' },
       completed: { variant: 'primary', text: 'Completed' },
       cancelled: { variant: 'error', text: 'Cancelled' }
@@ -231,7 +215,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
             </div>
 
             {/* Budget and Timeframe */}
-            <div className="flex items-center justify-between text-sm text-gray-700 mb-4 flex-shrink-0 bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center justify-between text-sm text-gray-700 mb-2 flex-shrink-0 bg-gray-50 rounded-lg p-3">
               <div className="flex items-center gap-1">
                 <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
                 <span className="font-semibold">Rs.{project.budgetAmount}</span>
@@ -242,11 +226,40 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
               </div>
             </div>
 
+            {/* Start & Due dates for awarded projects */}
+            {project.hasAcceptedFreelancer && (
+              <div className="flex items-center gap-3 text-xs text-gray-500 mb-3 px-1">
+                <span>Started: {new Date(project.awardedAt || project.createdAt).toLocaleDateString()}</span>
+                {project.deadline && (
+                  <span className={`font-medium ${
+                    new Date(project.deadline) < new Date() ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    Due: {new Date(project.deadline).toLocaleDateString()}
+                    {new Date(project.deadline) < new Date() && ' (overdue)'}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Footer with applications count and action button */}
             <div className="flex justify-between items-center pt-3 border-t border-gray-200 flex-shrink-0">
-              <span className="text-sm text-gray-500 font-medium">
-                {project.applicationsCount || 0} applications
-              </span>
+              {project.status === 'open' ? (
+                <span className="text-sm text-gray-500 font-medium">
+                  {project.applicationsCount || 0} applications
+                </span>
+              ) : project.status === 'awarded' || project.status === 'in_progress' ? (
+                <span className="text-sm text-green-600 font-medium">
+                  Freelancer assigned
+                </span>
+              ) : project.status === 'completed' ? (
+                <span className="text-sm text-purple-600 font-medium">
+                  Project finished
+                </span>
+              ) : (
+                <span className="text-sm text-gray-500 font-medium">
+                  {project.applicationsCount || 0} applications
+                </span>
+              )}
               <div className="flex gap-2">
                 {project.hasAcceptedFreelancer ? (
                   <Button
@@ -258,7 +271,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
                     <UserIcon className="h-4 w-4" />
                     Open Workspace
                   </Button>
-                ) : (
+                ) : project.status === 'open' ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -271,7 +284,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
                     <EyeIcon className="h-4 w-4" />
                     View Applications
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </Card>

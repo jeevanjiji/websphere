@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-hot-toast';
 import ChatInterface from './ChatInterface';
+import AIAssistantChat from './AIAssistantChat';
 import FileViewer from './FileViewerNew';
 import VideoCall from './VideoCall';
 import { PaymentModal } from './PaymentModal';
@@ -18,7 +19,8 @@ import {
   VideoCameraIcon,
   ArrowDownTrayIcon,
   XMarkIcon,
-  ClockIcon
+  ClockIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 
 
@@ -50,6 +52,9 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const [skipNextMilestoneFetch, setSkipNextMilestoneFetch] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showFileViewer, setShowFileViewer] = useState(false);
+
+  // AI assistant floating panel state
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
   
   // Deliverable Review States
   const [showDeliverableReview, setShowDeliverableReview] = useState(false);
@@ -909,14 +914,74 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     { id: 'payments', name: isFreelancer ? 'Payment History' : 'Payments', icon: CreditCardIcon }
   ];
 
+  const canMarkProjectCompleted =
+    isClient &&
+    workspace?.status === 'active' &&
+    Array.isArray(milestones) &&
+    milestones.length > 0 &&
+    milestones.every((m) => ['approved', 'paid'].includes(m?.status) || m?.paymentStatus === 'completed');
+
+  const handleMarkProjectCompleted = async () => {
+    if (!workspace?._id) return;
+    if (!canMarkProjectCompleted) {
+      toast.error('Cannot complete project until all milestones are finished.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/status`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast.error(data?.message || 'Failed to complete project');
+        return;
+      }
+
+      setWorkspace((prev) => ({ ...(prev || {}), status: 'completed', actualEndDate: new Date().toISOString() }));
+      toast.success('Project marked as completed');
+    } catch (error) {
+      console.error('❌ Error completing project:', error);
+      toast.error('Failed to complete project: ' + error.message);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-7xl h-[95vh] flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-7xl h-[95vh] flex flex-col relative">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b">
           <h2 className="text-xl font-semibold text-gray-800">Project Workspace</h2>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Status: <span className="capitalize font-medium">{workspace?.status || 'Unknown'}</span></span>
+            <span className={`text-sm px-2.5 py-1 rounded-full font-medium ${
+              workspace?.status === 'completed' ? 'bg-green-100 text-green-700' :
+              workspace?.status === 'active' ? 'bg-blue-100 text-blue-700' :
+              workspace?.status === 'on-hold' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>
+              {workspace?.status === 'completed' ? '✓ Completed' :
+               workspace?.status === 'active' ? 'Active' :
+               workspace?.status === 'on-hold' ? 'On Hold' :
+               workspace?.status || 'Unknown'}
+            </span>
+            {canMarkProjectCompleted && (
+              <button
+                onClick={handleMarkProjectCompleted}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md"
+                title="All milestones are completed — mark this project as done"
+              >
+                <FlagIcon className="w-4 h-4" />
+                <span>Mark Project Completed</span>
+              </button>
+            )}
             {workspace.status === 'active' && (
               <button
                 onClick={handleStartVideoCall}
@@ -1656,10 +1721,44 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
               )}
             </div>
           )}
+
         </div>
 
-
       </div>
+
+      {/* Floating AI Assistant Panel - fixed at bottom right */}
+      {showAIAssistant && (
+        <div className="fixed bottom-24 right-6 w-[400px] max-w-[calc(100vw-2rem)] h-[540px] border border-purple-200 rounded-2xl shadow-2xl overflow-hidden z-[9999] bg-white animate-in slide-in-from-bottom-4 duration-300">
+          <button
+            onClick={() => setShowAIAssistant(false)}
+            className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+            aria-label="Close AI assistant"
+            title="Close"
+          >
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+          <AIAssistantChat workspaceId={workspace._id} user={user} />
+        </div>
+      )}
+
+      {/* Floating AI Assistant Button - fixed bottom right */}
+      <button
+        onClick={() => setShowAIAssistant((v) => !v)}
+        className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full text-white shadow-xl hover:shadow-2xl transition-all duration-300 ${
+          showAIAssistant
+            ? 'bg-gray-700 hover:bg-gray-800 scale-95'
+            : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:scale-105'
+        }`}
+        aria-label="Toggle AI assistant"
+        title="AI Assistant"
+      >
+        {showAIAssistant ? (
+          <XMarkIcon className="w-5 h-5" />
+        ) : (
+          <SparklesIcon className="w-5 h-5 animate-pulse" />
+        )}
+        <span className="text-sm font-semibold">{showAIAssistant ? 'Close' : 'AI Assistant'}</span>
+      </button>
 
       {/* Milestone Approval Modal */}
       {showApprovalModal && (

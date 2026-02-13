@@ -358,7 +358,7 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
             )}
 
             {/* Action Buttons */}
-            {application.status === 'pending' && (
+            {application.status === 'pending' && !isProjectAwarded && (
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <Button
                   variant="success"
@@ -394,8 +394,12 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
               </div>
             )}
 
-            {(application.status === 'accepted' || application.status === 'awarded') && (
-              <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
+            {application.status === 'awarded' && (
+              <div className="flex gap-3 justify-end items-center pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-2 text-green-600 font-medium mr-auto">
+                  <CheckIcon className="h-5 w-5" />
+                  Project Awarded
+                </div>
                 <Button
                   variant="primary"
                   size="small"
@@ -415,19 +419,13 @@ const ProjectApplicationsList = ({ projectId, onApplicationResponse, onOpenChat,
                   <UserIcon className="h-4 w-4" />
                   Workspace
                 </Button>
-                
-                <div className="flex items-center gap-2 text-green-600 font-medium">
-                  <CheckIcon className="h-5 w-5" />
-                  Selected for Job
-                </div>
               </div>
             )}
 
-            {application.status === 'awarded' && (
+            {application.status === 'rejected' && isProjectAwarded && (
               <div className="flex justify-end pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-2 text-green-600 font-medium">
-                  <CheckIcon className="h-5 w-5" />
-                  Project Awarded to this Freelancer
+                <div className="flex items-center gap-2 text-gray-400 text-sm">
+                  Project has been awarded to another freelancer
                 </div>
               </div>
             )}
