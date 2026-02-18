@@ -171,6 +171,13 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
       });
     }
 
+    if (content && content.length > 10000) {
+      return res.status(400).json({
+        success: false,
+        message: `Message is too long (${content.length} characters). Maximum allowed is 10,000 characters.`
+      });
+    }
+
     // Verify chat exists and user is participant
     const chat = await Chat.findById(chatId);
     if (!chat) {

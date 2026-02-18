@@ -914,17 +914,85 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     { id: 'payments', name: isFreelancer ? 'Payment History' : 'Payments', icon: CreditCardIcon }
   ];
 
+  // Build a set of milestone IDs that have at least one approved deliverable
+  // Source 1: Deliverable documents with status 'approved'
+  const milestonesWithApprovedDeliverable = new Set(
+    (deliverables || [])
+      .filter((d) => d.status === 'approved' && d.milestone)
+      .map((d) => String(typeof d.milestone === 'object' ? (d.milestone._id || d.milestone.id) : d.milestone))
+  );
+  // Source 2: If a milestone's escrow has been released, Websphere already verified
+  // the deliverable was submitted & approved — so treat that as approved too.
+  // Also check payment records for escrow-level clientApprovalStatus.
+  (milestones || []).forEach((m) => {
+    const mid = getId(m);
+    if (!mid) return;
+    // Escrow released means everything was approved by client + admin
+    if (m?.escrowStatus === 'released' || m?.status === 'paid') {
+      milestonesWithApprovedDeliverable.add(mid);
+    }
+  });
+  // Also check payments array for escrow-level approval
+  (payments || []).forEach((p) => {
+    const mid = String(p?.milestone?._id || p?.milestone?.id || p?._id || '');
+    if (!mid) return;
+    if (
+      p?.escrow?.clientApprovalStatus === 'approved' ||
+      p?.escrow?.clientApprovalStatus === 'auto-approved' ||
+      p?.escrow?.status === 'released' ||
+      p?.status === 'completed'
+    ) {
+      milestonesWithApprovedDeliverable.add(mid);
+    }
+  });
+
+  // Debug: log the set so we can compare against milestone IDs
+  console.log('🔍 END-PROJECT-CHECK: milestonesWithApprovedDeliverable set:', [...milestonesWithApprovedDeliverable]);
+  console.log('🔍 END-PROJECT-CHECK: milestones array:', milestones?.map(m => ({
+    id: getId(m),
+    status: m?.status,
+    paymentStatus: m?.paymentStatus,
+    escrowStatus: m?.escrowStatus,
+  })));
+  console.log('🔍 END-PROJECT-CHECK: workspace status:', workspace?.status, '| isClient:', isClient, '| isFreelancer:', isFreelancer);
+
+  // --- End-Project eligibility (always computed so we can show the button with a reason) ---
+  const endProjectBlockers = (() => {
+    const reasons = [];
+    if (workspace?.status !== 'active') reasons.push('Workspace is not active');
+    if (!Array.isArray(milestones) || milestones.length === 0) {
+      reasons.push('No milestones exist yet');
+      return reasons;
+    }
+    milestones.forEach((m) => {
+      const milestoneId = getId(m);
+      const isPaid =
+        m?.status === 'paid' ||
+        m?.status === 'approved' ||
+        m?.paymentStatus === 'completed' ||
+        m?.paymentStatus === 'processing' ||
+        ['active', 'released', 'completed'].includes(m?.escrowStatus);
+      const hasApprovedDeliverable = !!milestoneId && milestonesWithApprovedDeliverable.has(milestoneId);
+
+      console.log(`🔍 END-PROJECT-CHECK milestone "${m?.title}" (${milestoneId}): isPaid=${isPaid}, hasApprovedDeliverable=${hasApprovedDeliverable}, status=${m?.status}, paymentStatus=${m?.paymentStatus}, escrowStatus=${m?.escrowStatus}`);
+
+      if (!isPaid) reasons.push(`"${m?.title || 'Untitled'}" is not paid`);
+      if (!hasApprovedDeliverable) reasons.push(`"${m?.title || 'Untitled'}" has no approved deliverable`);
+    });
+    return reasons;
+  })();
+
   const canMarkProjectCompleted =
-    isClient &&
+    (isClient || isFreelancer) &&
     workspace?.status === 'active' &&
-    Array.isArray(milestones) &&
-    milestones.length > 0 &&
-    milestones.every((m) => ['approved', 'paid'].includes(m?.status) || m?.paymentStatus === 'completed');
+    endProjectBlockers.length === 0;
+
+  console.log('🔍 END-PROJECT-CHECK canMarkProjectCompleted:', canMarkProjectCompleted, 'blockers:', endProjectBlockers);
 
   const handleMarkProjectCompleted = async () => {
     if (!workspace?._id) return;
     if (!canMarkProjectCompleted) {
-      toast.error('Cannot complete project until all milestones are finished.');
+      toast.error('Cannot complete project until all milestones are paid and all deliverables are submitted and approved.');
       return;
     }
 
@@ -972,14 +1040,23 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                workspace?.status === 'on-hold' ? 'On Hold' :
                workspace?.status || 'Unknown'}
             </span>
-            {canMarkProjectCompleted && (
+            {workspace?.status === 'active' && (
               <button
-                onClick={handleMarkProjectCompleted}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md"
-                title="All milestones are completed — mark this project as done"
+                onClick={canMarkProjectCompleted ? handleMarkProjectCompleted : undefined}
+                disabled={!canMarkProjectCompleted}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium shadow-sm ${
+                  canMarkProjectCompleted
+                    ? 'bg-green-600 text-white hover:bg-green-700 hover:shadow-md cursor-pointer'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                title={
+                  canMarkProjectCompleted
+                    ? 'All milestones are paid and deliverables approved — mark this project as done'
+                    : `Cannot end project yet: ${endProjectBlockers.join('; ')}`
+                }
               >
                 <FlagIcon className="w-4 h-4" />
-                <span>Mark Project Completed</span>
+                <span>End Project</span>
               </button>
             )}
             {workspace.status === 'active' && (

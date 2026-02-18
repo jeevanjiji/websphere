@@ -13,6 +13,8 @@ import Button from './ui/Button';
 import { toast } from 'react-hot-toast';
 import { formatMessageTime } from '../utils/dateUtils';
 
+const MAX_MESSAGE_LENGTH = 10000;
+
 const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false }) => {
   const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
@@ -139,6 +141,10 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
+    if (newMessage.trim().length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Message is too long (${newMessage.trim().length} chars). Maximum is ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`);
+      return;
+    }
 
     sendMessage({
       content: newMessage.trim(),
@@ -311,13 +317,16 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         <div className="p-4 border-t border-gray-200">
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <div className="flex-1 relative">
-              <input
-                type="text"
+              <textarea
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
                 placeholder="Type your message..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                rows={1}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 resize-none overflow-hidden"
                 disabled={sending}
+                style={{ minHeight: '40px', maxHeight: '120px' }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
               />
               <button
                 type="button"
@@ -329,13 +338,18 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
             <Button
               type="submit"
               variant="primary"
-              disabled={!newMessage.trim() || sending}
+              disabled={!newMessage.trim() || sending || newMessage.trim().length > MAX_MESSAGE_LENGTH}
               className="flex items-center gap-2"
             >
               <PaperAirplaneIcon className="h-5 w-5" />
               {sending ? 'Sending...' : 'Send'}
             </Button>
           </form>
+          {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+            <p className={`text-xs mt-1 text-right ${newMessage.length > MAX_MESSAGE_LENGTH ? 'text-red-500 font-semibold' : 'text-yellow-600'}`}>
+              {newMessage.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()} characters
+            </p>
+          )}
         </div>
       </div>
     );
@@ -603,13 +617,16 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         <div className="p-4 border-t border-gray-200">
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <div className="flex-1 relative">
-              <input
-                type="text"
+              <textarea
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
                 placeholder="Type your message..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                rows={1}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 resize-none overflow-hidden"
                 disabled={sending}
+                style={{ minHeight: '40px', maxHeight: '120px' }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
               />
               <button
                 type="button"
@@ -621,13 +638,18 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
             <Button
               type="submit"
               variant="primary"
-              disabled={!newMessage.trim() || sending}
+              disabled={!newMessage.trim() || sending || newMessage.trim().length > MAX_MESSAGE_LENGTH}
               className="flex items-center gap-2"
             >
               <PaperAirplaneIcon className="h-5 w-5" />
               {sending ? 'Sending...' : 'Send'}
             </Button>
           </form>
+          {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+            <p className={`text-xs mt-1 text-right ${newMessage.length > MAX_MESSAGE_LENGTH ? 'text-red-500 font-semibold' : 'text-yellow-600'}`}>
+              {newMessage.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()} characters
+            </p>
+          )}
         </div>
       </motion.div>
     </div>

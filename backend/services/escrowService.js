@@ -369,16 +369,24 @@ class EscrowService {
       milestone.reviewNotes = notes || '';
       await milestone.save();
 
+      // Also ensure deliverableSubmitted is true (fix data sync)
+      if (!escrow.deliverableSubmitted) {
+        escrow.deliverableSubmitted = true;
+        escrow.deliverableSubmittedAt = escrow.deliverableSubmittedAt || new Date();
+      }
+
       await escrow.save();
 
       // Send appropriate notifications
       if (approved) {
         await this.sendEscrowNotifications(escrow, 'client_approved');
         
-        // If approved, check if funds should be auto-released
-        if (!escrow.releaseConditions.requiresAdminApproval) {
-          // Auto-release funds if no admin approval required
+        // Auto-release funds after client approval (no admin approval needed)
+        try {
           await this.releaseFunds(milestoneId, 'system', 'Auto-release after client approval');
+          console.log('✅ Funds auto-released after client approval');
+        } catch (releaseErr) {
+          console.log('ℹ️ Auto-release after approval not triggered:', releaseErr.message);
         }
       } else {
         await this.sendEscrowNotifications(escrow, 'client_rejected');
@@ -400,6 +408,79 @@ class EscrowService {
   }
 
   /**
+   * Sync escrow flags with actual milestone/deliverable data
+   * Fixes data inconsistencies where escrow flags are out of sync
+   */
+  static async syncEscrowState(escrow) {
+    try {
+      const Deliverable = require('../models/Deliverable');
+      const milestoneId = escrow.milestone._id || escrow.milestone;
+
+      // Check actual deliverable status from Deliverable collection
+      const deliverables = await Deliverable.find({ milestone: milestoneId }).sort({ submissionDate: -1 });
+      
+      // Check milestone status directly
+      const milestone = await Milestone.findById(milestoneId);
+
+      let needsSave = false;
+
+      // Sync deliverableSubmitted: true if ANY deliverable exists for this milestone
+      // or if the milestone itself shows delivered/submitted
+      const hasSubmittedDeliverable = deliverables.length > 0;
+      const milestoneDelivered = milestone && (
+        milestone.deliveryStatus === 'delivered' || 
+        milestone.submittedBy || 
+        milestone.submissionDate
+      );
+
+      if (!escrow.deliverableSubmitted && (hasSubmittedDeliverable || milestoneDelivered)) {
+        console.log('🔄 Syncing escrow: deliverableSubmitted → true (was false)');
+        escrow.deliverableSubmitted = true;
+        escrow.deliverableSubmittedAt = escrow.deliverableSubmittedAt || 
+          (deliverables[0]?.submissionDate) || 
+          (milestone?.submissionDate) || 
+          new Date();
+        needsSave = true;
+      }
+
+      // Sync clientApprovalStatus: if any deliverable is approved, escrow should reflect that
+      const hasApprovedDeliverable = deliverables.some(d => d.status === 'approved');
+      const milestoneApproved = milestone && milestone.status === 'approved';
+
+      if (escrow.clientApprovalStatus !== 'approved' && (hasApprovedDeliverable || milestoneApproved)) {
+        console.log(`🔄 Syncing escrow: clientApprovalStatus → approved (was ${escrow.clientApprovalStatus})`);
+        escrow.clientApprovalStatus = 'approved';
+        escrow.clientApprovedAt = escrow.clientApprovedAt || 
+          deliverables.find(d => d.status === 'approved')?.reviewDate || 
+          milestone?.reviewDate || 
+          new Date();
+        needsSave = true;
+      }
+
+      // If deliverable was re-submitted after rejection, reset from 'rejected' to 'pending'
+      if (escrow.clientApprovalStatus === 'rejected') {
+        const latestDeliverable = deliverables[0];
+        if (latestDeliverable && latestDeliverable.status === 'submitted' && 
+            latestDeliverable.submissionDate > (escrow.clientApprovedAt || new Date(0))) {
+          console.log('🔄 Syncing escrow: clientApprovalStatus → pending (new deliverable after rejection)');
+          escrow.clientApprovalStatus = 'pending';
+          needsSave = true;
+        }
+      }
+
+      if (needsSave) {
+        await escrow.save();
+        console.log('✅ Escrow state synced with actual milestone/deliverable data');
+      }
+
+      return { hasSubmittedDeliverable, hasApprovedDeliverable, milestoneApproved, milestoneDelivered };
+    } catch (error) {
+      console.error('⚠️ Error syncing escrow state:', error.message);
+      return {};
+    }
+  }
+
+  /**
    * Admin release funds to freelancer
    */
   static async releaseFunds(milestoneId, adminId, releaseReason = '') {
@@ -409,12 +490,57 @@ class EscrowService {
       const escrow = await Escrow.findOne({ milestone: milestoneId })
         .populate('milestone workspace client freelancer');
       
-      if (!escrow || escrow.status !== 'active') {
-        throw new Error('No active escrow found for fund release');
+      if (!escrow) {
+        throw new Error('No escrow found for this milestone');
       }
 
-      if (!escrow.deliverableSubmitted || escrow.clientApprovalStatus === 'rejected') {
-        throw new Error('Cannot release funds: Deliverable not submitted or rejected by client');
+      // If already released, return success instead of throwing
+      if (escrow.status === 'released') {
+        console.log(`ℹ️ Escrow for milestone ${milestoneId} already released at ${escrow.releasedAt}`);
+        return {
+          success: true,
+          escrow,
+          milestone: escrow.milestone,
+          amountReleased: escrow.amountToFreelancer,
+          alreadyReleased: true,
+          message: 'Funds have already been released to the freelancer'
+        };
+      }
+
+      if (escrow.status !== 'active') {
+        throw new Error(`Cannot release funds: Escrow status is "${escrow.status}", expected "active"`);
+      }
+
+      const isAdminRelease = adminId && adminId !== 'system';
+
+      // For system auto-release, do a best-effort eligibility check
+      // For admin release, skip validation — admin authority overrides data flags
+      if (!isAdminRelease) {
+        // Sync escrow flags with actual milestone/deliverable data
+        const syncResult = await this.syncEscrowState(escrow);
+        await escrow.populate('milestone workspace client freelancer');
+
+        const isDeliverableReady = escrow.deliverableSubmitted || 
+          syncResult.hasSubmittedDeliverable || 
+          syncResult.milestoneDelivered;
+        
+        const isApprovalValid = (escrow.clientApprovalStatus !== 'rejected') || 
+          syncResult.hasApprovedDeliverable || 
+          syncResult.milestoneApproved;
+
+        if (!isDeliverableReady || !isApprovalValid) {
+          throw new Error('Cannot release funds: Deliverable not submitted or rejected by client');
+        }
+      } else {
+        // Admin release — just sync state for logging, never block
+        console.log('👑 Admin-initiated release — bypassing deliverable validation');
+        console.log(`   Escrow flags: deliverableSubmitted=${escrow.deliverableSubmitted}, clientApprovalStatus=${escrow.clientApprovalStatus}`);
+        try {
+          await this.syncEscrowState(escrow);
+          await escrow.populate('milestone workspace client freelancer');
+        } catch (syncErr) {
+          console.warn('⚠️ State sync failed (non-blocking for admin):', syncErr.message);
+        }
       }
 
       // Update escrow
@@ -612,24 +738,51 @@ class EscrowService {
 
   /**
    * Auto-release funds for eligible escrows
+   * Releases immediately when deliverable is submitted AND approved by client
+   * Also releases after timeout period if no disputes
    */
   static async processAutoReleases() {
     try {
       console.log('🤖 Processing auto-releases...');
 
-      const eligibleEscrows = await Escrow.find({
+      // Find ALL active, non-disputed escrows (don't rely solely on escrow flags)
+      const activeEscrows = await Escrow.find({
         status: 'active',
-        deliverableSubmitted: true,
-        clientApprovalStatus: { $in: ['approved', 'pending'] },
         disputeRaised: false
-      });
+      }).populate('milestone');
 
       let releasedCount = 0;
 
-      for (const escrow of eligibleEscrows) {
-        if (escrow.isAutoReleaseDue) {
-          await this.releaseFunds(escrow.milestone, 'system', 'Auto-release after timeout');
-          releasedCount++;
+      for (const escrow of activeEscrows) {
+        try {
+          // Sync escrow state with actual data first
+          const syncResult = await this.syncEscrowState(escrow);
+
+          // Condition 1: Deliverable submitted AND approved by client → release immediately
+          const isApproved = escrow.clientApprovalStatus === 'approved' || 
+            syncResult.hasApprovedDeliverable || 
+            syncResult.milestoneApproved;
+          
+          const isSubmitted = escrow.deliverableSubmitted || 
+            syncResult.hasSubmittedDeliverable || 
+            syncResult.milestoneDelivered;
+
+          if (isSubmitted && isApproved) {
+            console.log(`✅ Auto-releasing escrow for milestone ${escrow.milestone._id || escrow.milestone}: deliverable submitted & approved`);
+            await this.releaseFunds(escrow.milestone._id || escrow.milestone, 'system', 'Auto-release: deliverable submitted and approved by client');
+            releasedCount++;
+            continue;
+          }
+
+          // Condition 2: Auto-release after timeout (deliverable submitted, pending approval, no disputes)
+          if (isSubmitted && escrow.clientApprovalStatus !== 'rejected' && escrow.isAutoReleaseDue) {
+            console.log(`✅ Auto-releasing escrow for milestone ${escrow.milestone._id || escrow.milestone}: timeout reached`);
+            await this.releaseFunds(escrow.milestone._id || escrow.milestone, 'system', 'Auto-release after timeout period');
+            releasedCount++;
+          }
+        } catch (releaseError) {
+          console.error(`⚠️ Failed to auto-release escrow ${escrow._id}:`, releaseError.message);
+          // Continue with other escrows
         }
       }
 

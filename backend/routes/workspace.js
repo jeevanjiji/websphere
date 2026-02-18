@@ -295,25 +295,85 @@ router.put('/:workspaceId/status', auth(['client', 'freelancer']), checkWorkspac
       });
     }
 
-    // Only client can mark as completed or change to on-hold
-    if ((status === 'completed' || status === 'on-hold') && req.userRole !== 'client') {
+    // Only client or freelancer can mark as completed; only client can change to on-hold
+    if (status === 'on-hold' && req.userRole !== 'client') {
       return res.status(403).json({
         success: false,
-        message: 'Only client can change workspace to this status'
+        message: 'Only client can change workspace to on-hold'
       });
     }
 
-    // If marking completed, ensure milestones are actually finished
+    // If marking completed, ensure all milestones are paid AND deliverables are submitted + client-approved
     if (status === 'completed') {
-      const milestones = await Milestone.find({ workspace: workspace._id }).select('status paymentStatus').lean();
+      const milestones = await Milestone.find({ workspace: workspace._id })
+        .select('_id title status paymentStatus escrowStatus')
+        .lean();
+
       if (milestones.length > 0) {
-        const finishedStatuses = ['approved', 'paid'];
-        const finishedPaymentStatuses = ['completed'];
-        const incomplete = milestones.filter(m => !finishedStatuses.includes(m.status) && !finishedPaymentStatuses.includes(m.paymentStatus));
-        if (incomplete.length > 0) {
+        const milestoneIds = milestones.map(m => m._id);
+
+        // Escrow records (source of truth for client payment + approval when available)
+        const escrows = await Escrow.find({ milestone: { $in: milestoneIds } })
+          .select('milestone status deliverableSubmitted clientApprovalStatus')
+          .lean();
+
+        const escrowByMilestoneId = new Map(
+          escrows.map(e => [e.milestone.toString(), e])
+        );
+
+        // Approved deliverables per milestone
+        const approvedDeliverables = await Deliverable.find({
+          workspace: workspace._id,
+          milestone: { $in: milestoneIds },
+          status: 'approved'
+        })
+          .select('milestone')
+          .lean();
+
+        const approvedDeliverableMilestoneIds = new Set(
+          approvedDeliverables.map(d => d.milestone.toString())
+        );
+
+        const unpaidMilestones = [];
+        const unapprovedDeliverablesMilestones = [];
+
+        for (const milestone of milestones) {
+          const milestoneId = milestone._id.toString();
+          const escrow = escrowByMilestoneId.get(milestoneId);
+
+          // 1) Paid check: client must have paid for every milestone.
+          // Prefer escrow.status when escrow exists; otherwise fall back to legacy milestone fields.
+          const isPaidViaEscrow = !!escrow && ['active', 'released', 'completed'].includes(escrow.status);
+          const isPaidLegacy =
+            milestone.paymentStatus === 'completed' ||
+            milestone.paymentStatus === 'processing' ||
+            milestone.status === 'paid' ||
+            milestone.status === 'approved' ||
+            ['active', 'released', 'completed'].includes(milestone.escrowStatus);
+
+          const isPaid = isPaidViaEscrow || isPaidLegacy;
+          if (!isPaid) unpaidMilestones.push(milestone);
+
+          // 2) Deliverable submission + client approval check.
+          // Prefer Deliverable.status when available; escrow approval is a secondary signal.
+          const isApprovedDeliverable = approvedDeliverableMilestoneIds.has(milestoneId);
+          const isApprovedViaEscrow =
+            !!escrow &&
+            escrow.deliverableSubmitted === true &&
+            ['approved', 'auto-approved'].includes(escrow.clientApprovalStatus);
+
+          if (!isApprovedDeliverable && !isApprovedViaEscrow) {
+            unapprovedDeliverablesMilestones.push(milestone);
+          }
+        }
+
+        if (unpaidMilestones.length > 0 || unapprovedDeliverablesMilestones.length > 0) {
           return res.status(400).json({
             success: false,
-            message: `Cannot complete project until all milestones are finished. ${incomplete.length} milestone(s) still pending.`
+            message:
+              `Cannot complete project until all milestones are paid and all deliverables are submitted and approved by the client. ` +
+              `Unpaid milestones: ${unpaidMilestones.length}. ` +
+              `Milestones with unapproved deliverables: ${unapprovedDeliverablesMilestones.length}.`
           });
         }
       }
@@ -872,11 +932,38 @@ router.put('/:workspaceId/deliverables/:deliverableId', auth(['client']), checkW
       if (deliverable.milestone) {
         try {
           const EscrowService = require('../services/escrowService');
+          
+          // First, directly sync escrow flags to ensure consistency
+          const Escrow = require('../models/Escrow');
+          await Escrow.findOneAndUpdate(
+            { milestone: deliverable.milestone._id, status: 'active' },
+            { 
+              deliverableSubmitted: true,
+              clientApprovalStatus: 'approved',
+              clientApprovedAt: new Date(),
+              clientApprovedBy: req.user.userId
+            }
+          );
+          
+          // Then call the escrow service (which also triggers auto-release)
           await EscrowService.approveDeliverable(deliverable.milestone._id, req.user.userId, {
             approved: true,
             notes: reviewNotes
           });
           console.log('✅ Escrow updated for deliverable approval');
+          
+          // Trigger immediate auto-release check for this milestone
+          try {
+            await EscrowService.releaseFunds(
+              deliverable.milestone._id, 
+              'system', 
+              'Auto-release: deliverable approved by client'
+            );
+            console.log('✅ Funds auto-released after client approval');
+          } catch (releaseErr) {
+            // Not necessarily an error - may already be released or conditions not met
+            console.log('ℹ️ Auto-release not triggered:', releaseErr.message);
+          }
         } catch (escrowError) {
           console.warn('⚠️ Escrow approval update failed (non-critical):', escrowError.message);
           // Don't fail the deliverable approval if escrow update fails

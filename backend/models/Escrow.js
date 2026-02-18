@@ -175,9 +175,19 @@ escrowSchema.virtual('daysSinceCreation').get(function() {
 // Virtual for checking if auto-release is due
 escrowSchema.virtual('isAutoReleaseDue').get(function() {
   if (this.status !== 'active' || this.disputeRaised) return false;
-  if (!this.deliverableSubmitted || this.clientApprovalStatus === 'rejected') return false;
+  if (!this.deliverableSubmitted) return false;
   
-  const releaseDate = new Date(this.activatedAt);
+  // If client approved, release is due immediately
+  if (this.clientApprovalStatus === 'approved') return true;
+  
+  // If rejected, don't auto-release
+  if (this.clientApprovalStatus === 'rejected') return false;
+  
+  // For pending approval: auto-release after timeout from deliverable submission
+  const referenceDate = this.deliverableSubmittedAt || this.activatedAt;
+  if (!referenceDate) return false;
+  
+  const releaseDate = new Date(referenceDate);
   releaseDate.setDate(releaseDate.getDate() + this.releaseConditions.autoReleaseAfterDays);
   
   return new Date() >= releaseDate;
