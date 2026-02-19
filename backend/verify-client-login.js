@@ -8,8 +8,14 @@ const verifyClientLogin = async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB\n');
 
-    const email = 'clientlogin@websphere.com';
-    const password = 'Client@123';
+    const email = process.env.VERIFY_CLIENT_EMAIL;
+    const password = process.env.VERIFY_CLIENT_PASSWORD;
+
+    if (!email || !password) {
+      console.error('❌ Missing VERIFY_CLIENT_EMAIL and/or VERIFY_CLIENT_PASSWORD in environment');
+      console.error('   Example: VERIFY_CLIENT_EMAIL="client@example.com" VERIFY_CLIENT_PASSWORD="<password>" node backend/verify-client-login.js');
+      process.exit(1);
+    }
 
     // Find user
     const user = await User.findOne({ email: email });
