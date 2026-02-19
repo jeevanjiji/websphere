@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './AuthContext';
+import { API_BASE_URL } from '../config/api.js';
 
 const SocketContext = createContext();
 
@@ -29,8 +30,7 @@ export const SocketProvider = ({ children }) => {
   // Initialize socket connection
   useEffect(() => {
     if (isAuthenticated && user) {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:5000');
-      const newSocket = io(apiBaseUrl, {
+      const newSocket = io(API_BASE_URL, {
         withCredentials: true,
         transports: ['websocket', 'polling']
       });

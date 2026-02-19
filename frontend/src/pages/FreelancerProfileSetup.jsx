@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Swal from 'sweetalert2';
 import { Button, Badge } from '../components/ui';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 
 const FreelancerProfileSetup = () => {
@@ -63,9 +64,9 @@ const FreelancerProfileSetup = () => {
 
       console.log('Loading user data with token:', token.substring(0, 20) + '...');
       console.log('Token length:', token.length);
-      console.log('Making request to:', 'http://localhost:5000/api/profile');
+      console.log('Making request to:', `${API_BASE_URL}${API_ENDPOINTS.PROFILE.BASE}`);
 
-      const response = await fetch('http://localhost:5000/api/profile', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROFILE.BASE}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -152,7 +153,7 @@ const FreelancerProfileSetup = () => {
       }
 
       console.log('Loading project history...');
-      const response = await fetch('http://localhost:5000/api/projects/my', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROJECTS.MY}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -199,7 +200,7 @@ const FreelancerProfileSetup = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Updating profile with data:', data);
-      const response = await fetch('http://localhost:5000/api/profile/basic-info', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROFILE.BASIC_INFO}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -242,7 +243,7 @@ const FreelancerProfileSetup = () => {
   const updateBio = async (bio) => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/freelancer/auto-tag-bio', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.FREELANCER_AUTO_TAG}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -562,7 +563,7 @@ const ProfilePictureTab = ({ profileData, setProfileData, loading, setLoading })
       const formData = new FormData();
       formData.append('profilePicture', selectedFile);
 
-      const response = await fetch('http://localhost:5000/api/profile/picture', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROFILE.PICTURE}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`

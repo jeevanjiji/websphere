@@ -14,7 +14,7 @@ import FreelancerProfileSetup from './pages/FreelancerProfileSetup';
 import FindWork from './pages/FindWork';
 import WhyWebSphere from './pages/WhyWebSphere';
 
-import FreelancerDashboard from './pages/FreelancerDashboard';
+
 import TestPage from './pages/TestPage';
 import VerifyEmailNotice from './pages/VerifyEmailNotice';
 import EmailVerified from './pages/EmailVerified';

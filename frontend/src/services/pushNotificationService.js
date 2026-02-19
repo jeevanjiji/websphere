@@ -1,7 +1,6 @@
 // frontend/src/services/pushNotificationService.js
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 class PushNotificationService {
   constructor() {
@@ -107,7 +106,7 @@ class PushNotificationService {
       }
 
       // Get VAPID public key from server
-      const { data } = await axios.get(`${API_BASE_URL}/api/notifications/vapid-public-key`);
+      const { data } = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.VAPID_KEY}`);
       
       if (!data.publicKey) {
         throw new Error('VAPID public key not configured on server');
@@ -148,7 +147,7 @@ class PushNotificationService {
       // Send subscription to server
       const token = localStorage.getItem('token');
       await axios.post(
-        `${API_BASE_URL}/api/notifications/subscribe`,
+        `${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.SUBSCRIBE}`,
         { subscription: this.subscription },
         {
           headers: {
@@ -229,7 +228,7 @@ class PushNotificationService {
     try {
       const token = localStorage.getItem('token');
       const { data } = await axios.put(
-        `${API_BASE_URL}/api/notifications/preferences`,
+        `${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.PREFERENCES}`,
         { preferences },
         {
           headers: {
@@ -253,7 +252,7 @@ class PushNotificationService {
     try {
       const token = localStorage.getItem('token');
       const { data } = await axios.get(
-        `${API_BASE_URL}/api/notifications/preferences`,
+        `${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.PREFERENCES}`,
         {
           headers: {
             Authorization: `Bearer ${token}`

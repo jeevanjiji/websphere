@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { XMarkIcon, PaperClipIcon } from '@heroicons/react/24/outline';
 import Button from './ui/Button';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -25,7 +26,7 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/applications', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.BASE}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

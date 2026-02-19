@@ -1,0 +1,7 @@
+{
+  "fullName": "john smith",
+  "email": "newtest@example.com",
+  "password": "password",
+  "role": "freelancer",
+  "bio": "Short bio"
+}

@@ -1,4 +1,6 @@
 // Push notification service for WebSphere app
+import { API_BASE_URL, API_ENDPOINTS, WS_BASE_URL } from '../config/api.js';
+
 class NotificationService {
   constructor() {
     this.registration = null;
@@ -85,7 +87,7 @@ class NotificationService {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5000/api/notifications/subscribe', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.SUBSCRIBE}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +139,7 @@ class NotificationService {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5000/api/notifications/send', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.NOTIFICATIONS.SEND}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +228,7 @@ class NotificationService {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const ws = new WebSocket(`ws://localhost:5000/notifications?token=${token}`);
+    const ws = new WebSocket(`${WS_BASE_URL}/notifications?token=${token}`);
 
     ws.onopen = () => {
       console.log('Connected to notification WebSocket');

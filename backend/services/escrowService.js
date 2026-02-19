@@ -814,7 +814,7 @@ class EscrowService {
             userRole: 'freelancer',
             type: 'payment',
             title: '💰 Payment Received!',
-            body: `Client has paid ₹${escrow.totalAmount} for milestone "${escrow.milestone.title}". Funds are held in escrow until deliverable approval.`,
+            body: `${escrow.client.fullName} has paid ₹${escrow.totalAmount} for milestone "${escrow.milestone.title}". Funds are held in escrow until deliverable approval.`,
             icon: '/payment-icon.png',
             data: {
               workspaceId: escrow.workspace._id,
@@ -855,7 +855,7 @@ class EscrowService {
             userRole: 'freelancer',
             type: 'payment',
             title: '🎉 Funds Released!',
-            body: `Congratulations! ₹${escrow.amountToFreelancer} has been released to your account for milestone "${escrow.milestone.title}".`,
+            body: `Congratulations! ₹${escrow.amountToFreelancer} from ${escrow.client.fullName} has been released to your account for milestone "${escrow.milestone.title}".`,
             icon: '/success-icon.png',
             data: {
               workspaceId: escrow.workspace._id,

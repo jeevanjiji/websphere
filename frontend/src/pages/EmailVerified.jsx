@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircleIcon, XCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const EmailVerified = () => {
   const [searchParams] = useSearchParams();
@@ -20,17 +21,40 @@ const EmailVerified = () => {
       return;
     }
 
-    verifyEmail(token);
+    // Check if verification was already attempted for this token
+    const verificationKey = `verification_attempted_${token}`;
+    const alreadyAttempted = sessionStorage.getItem(verificationKey);
+    
+    if (alreadyAttempted) {
+      // If already attempted, check the result
+      const result = JSON.parse(alreadyAttempted);
+      setVerificationStatus(result.status);
+      setMessage(result.message);
+      if (result.userInfo) {
+        setUserInfo(result.userInfo);
+      }
+      return;
+    }
+
+    // Mark as attempting verification
+    sessionStorage.setItem(verificationKey, JSON.stringify({ status: 'verifying', message: 'Verifying...' }));
+    
+    // Add a small delay to show the verifying state
+    setTimeout(() => {
+      verifyEmail(token);
+    }, 1500); // 1.5 second delay to show "Verifying..." state
   }, [searchParams]);
 
   const verifyEmail = async (token) => {
+    const verificationKey = `verification_attempted_${token}`;
+    
     try {
-      // Check if token is actually an email (from dev verification URLs)
-      // Dev URLs have format: /verify-email?token=user@example.com
-      const isEmail = token.includes('@') && !token.includes('%40'); // %40 is URL encoded @
-      const url = isEmail
-        ? `http://localhost:5000/api/auth/dev-verify/${token}`
-        : `http://localhost:5000/api/auth/verify-email/${token}`;
+      console.log('Starting email verification for token:', token);
+      
+      // Use the regular email verification endpoint
+      const url = `${API_BASE_URL}${API_ENDPOINTS.AUTH.VERIFY_EMAIL}/${token}`;
+
+      console.log('Verification URL:', url);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -39,9 +63,20 @@ const EmailVerified = () => {
         }
       });
 
+      console.log('Verification response status:', response.status);
       const data = await response.json();
+      console.log('Verification response data:', data);
 
       if (data.success) {
+        const result = {
+          status: 'success',
+          message: data.message,
+          userInfo: data.user
+        };
+        
+        // Store successful result
+        sessionStorage.setItem(verificationKey, JSON.stringify(result));
+        
         setVerificationStatus('success');
         setMessage(data.message);
         setUserInfo(data.user);
@@ -58,7 +93,7 @@ const EmailVerified = () => {
               formData.append('profilePicture', pendingData.profilePicture);
             }
 
-            const bioResponse = await fetch('http://localhost:5000/api/auth/freelancer/auto-tag-bio', {
+            const bioResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.FREELANCER_AUTO_TAG}`, {
               method: 'POST',
               credentials: 'include',
               body: formData
@@ -83,11 +118,30 @@ const EmailVerified = () => {
         }, 1000);
         
       } else {
+        const errorResult = {
+          status: 'error',
+          message: data.message || 'Email verification failed.',
+          userInfo: null
+        };
+        
+        // Store error result
+        sessionStorage.setItem(verificationKey, JSON.stringify(errorResult));
+        
         setVerificationStatus('error');
         setMessage(data.message || 'Email verification failed.');
       }
     } catch (error) {
       console.error('Email verification error:', error);
+      
+      const errorResult = {
+        status: 'error',
+        message: 'Unable to verify email. Please try again or contact support.',
+        userInfo: null
+      };
+      
+      // Store error result
+      sessionStorage.setItem(verificationKey, JSON.stringify(errorResult));
+      
       setVerificationStatus('error');
       setMessage('Unable to verify email. Please try again or contact support.');
     }

@@ -6,6 +6,7 @@ import {
   ExclamationTriangleIcon,
   DocumentTextIcon 
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const DeliverableSubmission = ({ milestone, onSubmitted }) => {
   const [submissionData, setSubmissionData] = useState({
@@ -25,7 +26,7 @@ const DeliverableSubmission = ({ milestone, onSubmitted }) => {
       setSubmitting(true);
 
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/payments/escrow/submit-deliverable', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PAYMENTS.ESCROW_SUBMIT}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

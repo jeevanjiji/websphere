@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ShieldCheckIcon,
@@ -11,54 +11,75 @@ import {
   TrophyIcon,
   StarIcon,
   CheckCircleIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  PlayIcon
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { Button } from '../components/ui';
 
 const WhyWebSphere = () => {
+  const navigate = useNavigate();
+
+  const handleGetStarted = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) {
+      navigate('/register');
+      return;
+    }
+    if (user.role === 'admin') {
+      navigate('/admin-dashboard');
+    } else if (user.role === 'client') {
+      navigate('/client');
+    } else if (user.role === 'freelancer') {
+      navigate('/freelancer');
+    } else {
+      navigate('/register');
+    }
+  };
+
   const features = [
     {
       title: 'Secure Payments',
       description: 'Protected transactions with milestone-based payments and dispute resolution',
       icon: ShieldCheckIcon,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     },
     {
       title: 'Global Opportunities',
       description: 'Access projects from clients worldwide and expand your market reach',
       icon: GlobeAltIcon,
-      color: 'text-green-500',
-      bgColor: 'bg-green-50'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     },
     {
       title: 'Fair Pricing',
       description: 'Competitive rates with transparent pricing and no hidden fees',
       icon: CurrencyRupeeIcon,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-100'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     },
     {
       title: '24/7 Support',
       description: 'Round-the-clock customer support to help you succeed',
       icon: ChatBubbleLeftRightIcon,
-      color: 'text-green-700',
-      bgColor: 'bg-green-200'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     },
     {
       title: 'Quality Clients',
       description: 'Verified clients with genuine projects and fair budgets',
       icon: UserGroupIcon,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-50'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     },
     {
       title: 'Fast Matching',
       description: 'AI-powered matching system connects you with relevant projects quickly',
       icon: ClockIcon,
-      color: 'text-green-800',
-      bgColor: 'bg-green-300'
+      color: 'text-primary',
+      bgColor: 'bg-primary/10'
     }
   ];
 
@@ -74,7 +95,7 @@ const WhyWebSphere = () => {
         'Performance analytics and earnings insights'
       ],
       icon: '👨‍💻',
-      gradient: 'from-blue-500 to-blue-700'
+      gradient: 'from-primary to-accent'
     },
     {
       title: 'For Clients',
@@ -87,7 +108,7 @@ const WhyWebSphere = () => {
         'Real-time project tracking and updates'
       ],
       icon: '🏢',
-      gradient: 'from-green-500 to-green-700'
+      gradient: 'from-primary to-accent'
     }
   ];
 
@@ -127,62 +148,98 @@ const WhyWebSphere = () => {
       <Navbar />
       
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-green-600 via-green-700 to-emerald-800 text-white py-20">
-        <div className="container mx-auto px-6">
-          <div className="max-w-4xl mx-auto text-center">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-5xl md:text-6xl font-bold mb-6"
-            >
-              Why Choose <span className="text-green-300">WebSphere</span>?
-            </motion.h1>
+      <section className="relative min-h-screen bg-white flex items-center justify-center overflow-hidden">
+        {/* Background elements */}
+        <div className="absolute inset-0">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-primary/5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-32 right-32 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/3 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <h1 className="heading-1 mb-6">
+              Why Choose
+              <span className="block text-primary">WebSphere</span>
+              for your business?
+            </h1>
+
             <motion.p
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-xl md:text-2xl mb-8 text-green-100"
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="body-large mb-12 max-w-3xl mx-auto"
             >
-              The most trusted platform for freelancers and clients in India and beyond
+              The most trusted platform for freelancers and clients worldwide. Join thousands who have already transformed their work experience with WebSphere.
             </motion.p>
+
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-center"
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
             >
-              <p className="text-lg text-green-200">
-                The most trusted platform for freelancers and clients worldwide
-              </p>
+              <Button
+                onClick={handleGetStarted}
+                variant="primary"
+                size="large"
+              >
+                Get Started
+              </Button>
+              <Button
+                variant="outline"
+                size="large"
+                icon={<PlayIcon />}
+                onClick={() => window.open('https://youtu.be/-VaJNh5bwhM', '_blank')}
+              >
+                Watch Demo
+              </Button>
             </motion.div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+      <section className="py-20 bg-bg-secondary">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <motion.h2
+              className="heading-2 mb-4"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
               Trusted by Thousands
-            </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              className="body-large max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
               Join a thriving community of freelancers and clients who choose WebSphere for their projects
-            </p>
+            </motion.p>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
                 className="text-center"
               >
-                <div className="text-4xl font-bold text-green-600 mb-2">{stat.number}</div>
-                <div className="text-lg font-semibold text-gray-900 mb-1">{stat.label}</div>
-                <div className="text-sm text-gray-600">{stat.description}</div>
+                <div className="text-4xl font-bold text-primary mb-2">{stat.number}</div>
+                <div className="text-lg font-semibold text-gray-dark mb-1">{stat.label}</div>
+                <div className="text-sm text-gray-medium">{stat.description}</div>
               </motion.div>
             ))}
           </div>
@@ -191,32 +248,45 @@ const WhyWebSphere = () => {
 
       {/* Features Section */}
       <section className="py-20 bg-white">
-        <div className="container mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <motion.h2
+              className="heading-2 mb-4"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
               What Makes WebSphere Special
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            </motion.h2>
+            <motion.p
+              className="body-large max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
               We've built a platform that puts both freelancers and clients first, with features designed to ensure success for everyone
-            </p>
+            </motion.p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 border border-gray-100"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border border-gray-border"
               >
-                <div className={`w-16 h-16 ${feature.bgColor} rounded-lg flex items-center justify-center mb-6`}>
+                <div className={`w-16 h-16 ${feature.bgColor} rounded-2xl flex items-center justify-center mb-6`}>
                   <feature.icon className={`h-8 w-8 ${feature.color}`} />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                <h3 className="text-xl font-semibold text-gray-dark mb-3">
                   {feature.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                <p className="text-gray-medium leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -224,27 +294,40 @@ const WhyWebSphere = () => {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="container mx-auto px-6">
+      <section className="py-20 bg-bg-secondary">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <motion.h2
+              className="heading-2 mb-4"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
               Benefits for Everyone
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              className="body-large max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
               Whether you're looking to hire or get hired, WebSphere has you covered
-            </p>
+            </motion.p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {benefits.map((benefit, index) => (
               <motion.div
                 key={benefit.title}
-                initial={{ opacity: 0, x: index === 0 ? -20 : 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-xl shadow-lg p-8"
+                initial={{ opacity: 0, x: index === 0 ? -30 : 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                viewport={{ once: true }}
+                className="bg-white rounded-2xl shadow-lg p-8"
               >
-                <div className={`bg-gradient-to-r ${benefit.gradient} text-white p-6 rounded-lg mb-6`}>
+                <div className={`bg-gradient-to-r ${benefit.gradient} text-white p-6 rounded-2xl mb-6`}>
                   <div className="flex items-center">
                     <span className="text-4xl mr-4">{benefit.icon}</span>
                     <h3 className="text-2xl font-bold">{benefit.title}</h3>
@@ -254,8 +337,8 @@ const WhyWebSphere = () => {
                 <ul className="space-y-4">
                   {benefit.items.map((item, itemIndex) => (
                     <li key={itemIndex} className="flex items-start">
-                      <CheckCircleIcon className="h-6 w-6 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
-                      <span className="text-gray-700">{item}</span>
+                      <CheckCircleIcon className="h-6 w-6 text-primary mt-0.5 mr-3 flex-shrink-0" />
+                      <span className="text-gray-medium">{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -267,36 +350,49 @@ const WhyWebSphere = () => {
 
       {/* Testimonials Section */}
       <section className="py-20 bg-white">
-        <div className="container mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            <motion.h2
+              className="heading-2 mb-4"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
               What Our Community Says
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              className="body-large max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
               Real stories from real people who have found success on WebSphere
-            </p>
+            </motion.p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
               <motion.div
                 key={testimonial.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.2 }}
-                className="bg-gray-50 p-6 rounded-xl"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                className="bg-bg-secondary rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 <div className="flex items-center mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <StarIcon key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                    <StarIcon key={i} className="h-5 w-5 text-warning fill-current" />
                   ))}
                 </div>
-                <p className="text-gray-700 mb-6 leading-relaxed">"{testimonial.content}"</p>
+                <p className="text-gray-medium mb-6 leading-relaxed">"{testimonial.content}"</p>
                 <div className="flex items-center">
-                  <span className="text-2xl mr-3">{testimonial.avatar}</span>
+                  <span className="text-3xl mr-4">{testimonial.avatar}</span>
                   <div>
-                    <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                    <div className="text-sm text-gray-600">{testimonial.role}</div>
+                    <div className="font-semibold text-gray-dark">{testimonial.name}</div>
+                    <div className="text-sm text-gray-medium">{testimonial.role}</div>
                   </div>
                 </div>
               </motion.div>
@@ -306,17 +402,50 @@ const WhyWebSphere = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-green-600 to-emerald-700">
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">
+      <section className="py-20 bg-gradient-to-r from-primary to-accent">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.h2
+            className="heading-2 text-white mb-6"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+          >
             Ready to Experience the WebSphere Advantage?
-          </h2>
-          <p className="text-xl text-green-100 mb-8 max-w-2xl mx-auto">
+          </motion.h2>
+          <motion.p
+            className="body-large text-white/90 mb-12 max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            viewport={{ once: true }}
+          >
             Join thousands of successful freelancers and clients who have made WebSphere their platform of choice
-          </p>
-          <p className="text-lg text-green-200">
-            Use the navbar to get started as a freelancer or to hire talent
-          </p>
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            viewport={{ once: true }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            <Button
+              onClick={handleGetStarted}
+              variant="secondary"
+              size="large"
+              className="bg-white text-primary hover:bg-gray-lighter"
+            >
+              Get Started Today
+            </Button>
+            <Button
+              variant="ghost"
+              size="large"
+              className="text-white hover:bg-white/10"
+              onClick={() => navigate('/find-work')}
+            >
+              Browse Projects
+            </Button>
+          </motion.div>
         </div>
       </section>
 

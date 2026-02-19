@@ -9,6 +9,7 @@ import {
   EyeIcon,
   HandRaisedIcon
 } from '@heroicons/react/24/outline';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const EscrowManagement = () => {
   const [escrows, setEscrows] = useState([]);
@@ -37,7 +38,7 @@ const EscrowManagement = () => {
   const fetchEscrows = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows?status=${selectedStatus}&page=${currentPage}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROWS}?status=${selectedStatus}&page=${currentPage}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -61,7 +62,7 @@ const EscrowManagement = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/escrows/stats', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROWS_STATS}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -79,7 +80,7 @@ const EscrowManagement = () => {
   const viewEscrowDetails = async (escrowId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${escrowId}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_BY_ID(escrowId)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -101,7 +102,7 @@ const EscrowManagement = () => {
   const handleReleaseFunds = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${selectedEscrow._id}/release`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_RELEASE(selectedEscrow._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -130,7 +131,7 @@ const EscrowManagement = () => {
   const handleResolveDispute = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/escrows/${selectedEscrow._id}/resolve-dispute`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_RESOLVE(selectedEscrow._id)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -164,7 +165,7 @@ const EscrowManagement = () => {
   const processAutoReleases = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/escrows/auto-release', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN.ESCROW_AUTO_RELEASE}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -494,13 +495,23 @@ const EscrowManagement = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>Ready for Release:</span>
-                    <span className={
-                      selectedEscrow.isReadyForRelease
-                        ? 'text-green-600 font-semibold' 
-                        : 'text-red-600'
-                    }>
-                      {selectedEscrow.isReadyForRelease ? 'Yes ✓' : 'No'}
-                    </span>
+                    {(() => {
+                      const isReady = typeof selectedEscrow.isReadyForRelease === 'boolean'
+                        ? selectedEscrow.isReadyForRelease
+                        : (
+                            selectedEscrow.status === 'active' &&
+                            (selectedEscrow.deliverableSubmitted || selectedEscrow.deliverableSubmittedAt || selectedEscrow.isDeliverableSubmitted) &&
+                            (selectedEscrow.clientApprovalStatus === 'approved' || selectedEscrow.isApproved)
+                          );
+
+                      return (
+                        <span
+                          className={isReady ? 'text-green-600 font-semibold' : 'text-red-600'}
+                        >
+                          {isReady ? 'Yes ✓' : 'No'}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="flex justify-between text-xs text-gray-600">
                     <span className="ml-4">• Payment:</span>
@@ -563,12 +574,21 @@ const EscrowManagement = () => {
                   )}
                 </div>
               </div>
-
             </div>
 
             {/* Actions - Fixed at bottom */}
             <div className="p-6 border-t flex gap-3 flex-shrink-0">
-              {selectedEscrow.isReadyForRelease && (
+              {(() => {
+                const isReady = typeof selectedEscrow.isReadyForRelease === 'boolean'
+                  ? selectedEscrow.isReadyForRelease
+                  : (
+                      selectedEscrow.status === 'active' &&
+                      (selectedEscrow.deliverableSubmitted || selectedEscrow.deliverableSubmittedAt || selectedEscrow.isDeliverableSubmitted) &&
+                      (selectedEscrow.clientApprovalStatus === 'approved' || selectedEscrow.isApproved)
+                    );
+
+                return isReady;
+              })() && (
                 <button
                   onClick={() => setShowReleaseModal(true)}
                   className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"

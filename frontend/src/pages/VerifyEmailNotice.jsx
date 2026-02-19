@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { EnvelopeIcon, ArrowPathIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
 const VerifyEmailNotice = () => {
   const [email, setEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [emailSent, setEmailSent] = useState(true);
-  const [devVerificationUrl, setDevVerificationUrl] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,7 +19,6 @@ const VerifyEmailNotice = () => {
       const data = JSON.parse(pendingRegistration);
       setEmail(data.email);
       setEmailSent(data.emailSent !== false); // Default to true if not specified
-      setDevVerificationUrl(data.devVerificationUrl || '');
     } else {
       // If no pending registration, redirect to registration
       navigate('/freelancer-registration');
@@ -31,7 +30,7 @@ const VerifyEmailNotice = () => {
 
     setResending(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/resend-verification', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.RESEND_VERIFICATION}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,19 +135,7 @@ const VerifyEmailNotice = () => {
                 </p>
               </div>
 
-              {devVerificationUrl && (
-                <button
-                  onClick={() => window.open(devVerificationUrl, '_blank')}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <CheckCircleIcon className="h-5 w-5" />
-                  Verify Account (Development)
-                </button>
-              )}
 
-              <p className="text-white/60 text-xs text-center">
-                For testing: Click the development verification button above
-              </p>
             </div>
           )}
 

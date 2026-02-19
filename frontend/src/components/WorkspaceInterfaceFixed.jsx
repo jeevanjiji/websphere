@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { toast } from 'react-hot-toast';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import ChatInterface from './ChatInterface';
 import AIAssistantChat from './AIAssistantChat';
 import FileViewer from './FileViewerNew';
@@ -24,7 +25,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 
-const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
+const WorkspaceInterfaceFixed = ({ projectId, applicationId, initialTab, onClose }) => {
   console.log('� WorkspaceInterfaceFixed: Component starting to render');
   console.log('�🔍 WorkspaceInterface: Component rendering with props:', { projectId, applicationId });
 
@@ -34,7 +35,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   console.log('🔍 WorkspaceInterface: User from AuthContext:', user);
   const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState(initialTab || 'chat');
   const [milestones, setMilestones] = useState([]);
   const [deliverables, setDeliverables] = useState([]);
   const [files, setFiles] = useState([]);
@@ -190,7 +191,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       console.log('🔍 Fetching workspace for project:', projectId);
       console.log('🔍 Token exists:', !!token);
       
-      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.PROJECT(projectId)), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -234,7 +235,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching milestones for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/milestones`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.MILESTONES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -260,7 +261,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching deliverables for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/deliverables`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.DELIVERABLES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -283,7 +284,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching files for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/files`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.FILES(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -306,7 +307,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
     try {
       console.log('🔍 Fetching payments for workspace:', workspaceId);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/payments`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.PAYMENTS(workspaceId)), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -341,7 +342,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
       formData.append('description', 'Workspace file upload');
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/files`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.FILES(workspace._id)), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -378,7 +379,7 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
   const createMilestone = async (milestoneData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/workspaces/${workspace._id}/milestones`, {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.WORKSPACES.MILESTONES(workspace._id)), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1742,6 +1743,11 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                                 🔒 Held in Escrow
                               </span>
                             )}
+                            {payment.milestone?.escrowStatus === 'released' && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ✅ Released from Escrow
+                              </span>
+                            )}
                           </div>
                           <p className="text-gray-600 text-sm mt-1">
                             {payment.milestone?.title || 'Payment'}
@@ -1763,16 +1769,31 @@ const WorkspaceInterfaceFixed = ({ projectId, applicationId, onClose }) => {
                               </div>
                             </div>
                           )}
+                          {payment.milestone?.escrowStatus === 'released' && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                              <div className="flex items-center text-sm text-green-800">
+                                <span className="text-green-600 mr-2">✅</span>
+                                <div>
+                                  <p className="font-medium">Payment released from escrow</p>
+                                  <p className="text-xs text-green-600 mt-1">
+                                    Funds released on {payment.milestone.escrowReleasedAt ? new Date(payment.milestone.escrowReleasedAt).toLocaleDateString() : 'N/A'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          payment.status === 'completed' && payment.milestone?.escrowStatus === 'active' 
+                          payment.milestone?.escrowStatus === 'active' 
                             ? 'bg-blue-100 text-blue-800' :
-                          payment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          payment.milestone?.escrowStatus === 'released' || payment.status === 'completed'
+                            ? 'bg-green-100 text-green-800' :
                           payment.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
                           payment.status === 'pending' ? 'bg-orange-100 text-orange-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {payment.milestone?.escrowStatus === 'active' ? 'In Escrow' : 
+                           payment.milestone?.escrowStatus === 'released' ? 'Released' :
                            payment.status || 'Pending'}
                         </span>
                       </div>

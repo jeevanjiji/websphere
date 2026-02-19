@@ -503,10 +503,11 @@ const notificationHelpers = {
     });
   },
 
-  async paymentReceived(userId, amount, projectTitle) {
+  async paymentReceived(userId, amount, projectTitle, clientName = null) {
+    const clientInfo = clientName ? ` from ${clientName}` : '';
     return this.sendNotification(userId, {
       title: 'Payment Received',
-      body: `You received ₹${amount} for ${projectTitle}`,
+      body: `You received ₹${amount}${clientInfo} for ${projectTitle}`,
       data: {
         action: 'view_payments'
       }

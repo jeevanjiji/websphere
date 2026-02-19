@@ -18,11 +18,17 @@ const socketIo  = require('socket.io');
 const JobScheduler = require('./jobs/scheduler');
 const EscrowScheduler = require('./jobs/escrowScheduler');
 
+const PORT = process.env.PORT || 5000;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com';
+
+
 const app  = express();
 const server = http.createServer(app);
 const CORS_ORIGINS = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'];
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : (process.env.NODE_ENV === 'production'
+      ? [FRONTEND_URL]
+      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174']);
 
 const io = socketIo(server, {
   cors: {
@@ -31,8 +37,6 @@ const io = socketIo(server, {
     credentials: true
   }
 });
-
-const PORT = process.env.PORT || 5000;
 
 /* ──────────────────────────────────────────
    Global Middleware

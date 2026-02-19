@@ -305,7 +305,7 @@ router.post('/register', async (req, res) => {
     } catch (emailError) {
       console.error('❌ Failed to send verification email:', emailError);
       console.log('📧 Email service unavailable, but registration successful');
-      // Don't fail registration if email fails - user can use dev verification
+      // Don't fail registration if email fails
     }
 
     // Don't set user session yet - user needs to verify email first
@@ -314,7 +314,7 @@ router.post('/register', async (req, res) => {
     if (emailSent) {
       responseMessage = 'Registration successful! Please check your email to verify your account.';
     } else {
-      responseMessage = 'Registration successful! Email service is temporarily unavailable. You can verify your account using the development verification link.';
+      responseMessage = 'Registration successful! Email service is temporarily unavailable. Please try again or contact support.';
     }
 
     res.status(201).json({
@@ -323,7 +323,7 @@ router.post('/register', async (req, res) => {
       needsVerification: true,
       emailSent,
       email: savedPendingUser.email, // For display purposes only
-      devVerificationUrl: !emailSent
+      devVerificationUrl: (!emailSent && process.env.NODE_ENV !== 'production')
         ? `${process.env.BACKEND_URL || 'http://localhost:' + (process.env.PORT || 5000)}/api/auth/dev-verify/${savedPendingUser.email}`
         : null
     });
@@ -498,6 +498,27 @@ router.get('/verify-email/:token', async (req, res) => {
       });
     }
 
+    // First check if user is already verified with this token
+    const alreadyVerifiedUser = await User.findOne({
+      verificationToken: token,
+      isVerified: true
+    });
+
+    if (alreadyVerifiedUser) {
+      return res.json({
+        success: true,
+        message: 'Email already verified! Your account is ready to use.',
+        user: {
+          id: alreadyVerifiedUser._id,
+          fullName: alreadyVerifiedUser.fullName,
+          email: alreadyVerifiedUser.email,
+          role: alreadyVerifiedUser.role,
+          isVerified: alreadyVerifiedUser.isVerified
+        },
+        alreadyVerified: true
+      });
+    }
+
     // Find pending user with this verification token
     const pendingUser = await PendingUser.findOne({
       verificationToken: token,
@@ -513,6 +534,10 @@ router.get('/verify-email/:token', async (req, res) => {
 
     // Convert pending user to actual user
     const user = pendingUser.toActualUser();
+    
+    // Preserve the verification token for future reference
+    user.verificationToken = token;
+    
     await user.save();
 
     // Remove the pending user
@@ -600,87 +625,6 @@ router.post('/resend-verification', async (req, res) => {
 });
 
 // Development route to simulate email verification (for testing)
-router.get('/dev-verify/:email', async (req, res) => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(404).json({ success: false, message: 'Route not available in production' });
-    }
-
-    const { email } = req.params;
-
-    // First check if user is in pending collection
-    const pendingUser = await PendingUser.findOne({
-      email: email.toLowerCase()
-    });
-
-    if (pendingUser) {
-      // Convert pending user to actual user
-      const user = pendingUser.toActualUser();
-      await user.save();
-
-      // Remove the pending user
-      await PendingUser.findByIdAndDelete(pendingUser._id);
-
-      console.log('✅ User verified and moved to main collection (DEV):', user.email);
-
-      return res.json({
-        success: true,
-        message: 'Email verified successfully! (Development mode)',
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-          isVerified: user.isVerified,
-          verifiedAt: user.verifiedAt
-        }
-      });
-    }
-
-    // Check if user is already in main collection but not verified
-    const user = await User.findOne({
-      email: email.toLowerCase(),
-      isVerified: false
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found or already verified'
-      });
-    }
-
-    // Verify the user
-    user.isVerified = true;
-    user.verifiedAt = new Date();
-    user.verificationToken = null;
-    user.verificationTokenExpires = null;
-
-    await user.save();
-
-    console.log('✅ User verified successfully (DEV):', user.email);
-
-    res.json({
-      success: true,
-      message: 'Email verified successfully! (Development mode)',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified,
-        verifiedAt: user.verifiedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Dev verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Verification failed'
-    });
-  }
-});
 
 // Forgot password route
 router.post('/forgot-password', async (req, res) => {
@@ -814,7 +758,7 @@ router.get('/test-route', (req, res) => {
       'POST /resend-verification',
       'POST /forgot-password',
       'POST /reset-password',
-      'GET /dev-verify/:email (dev only)',
+
       'GET /session',
       'POST /logout'
     ]

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { API_BASE_URL, API_ENDPOINTS, buildApiUrl } from '../config/api';
 import {
   PlusIcon,
   BriefcaseIcon,
@@ -24,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const ClientDashboard = ({ showForm, setShowForm }) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -51,7 +53,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/projects/my', {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.PROJECTS.MY), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -110,6 +112,72 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
       delete window.startClientTour;
     };
   }, [user]);
+
+  // Handle opening workspace from URL parameters (for notification clicks)
+  useEffect(() => {
+    const openWorkspace = searchParams.get('openWorkspace');
+    const workspaceId = searchParams.get('workspaceId');
+    const tab = searchParams.get('tab');
+
+    if (openWorkspace === 'true' && workspaceId) {
+      // Find workspace by ID and open it
+      openWorkspaceFromId(workspaceId, tab);
+      
+      // Clear the URL parameters to avoid reopening on refresh
+      setSearchParams({});
+    }
+  }, [searchParams]);
+
+  // Function to open workspace by workspace ID
+  const openWorkspaceFromId = async (workspaceId, specificTab = null) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please log in to access workspace');
+        return;
+      }
+
+      // Fetch workspace details to get project and application IDs
+      console.log('🔍 Fetching workspace details for ID:', workspaceId);
+      
+      const response = await fetch(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 Workspace API response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📋 Workspace API response data:', data);
+      
+      if (!response.ok) {
+        console.error('❌ Workspace API error:', response.status, data.message);
+        toast.error(data.message || 'Failed to load workspace');
+        return;
+      }
+
+      if (data.success && data.data) {
+        // Open the workspace modal with the correct IDs
+        console.log('✅ Opening workspace modal with data:', data.data);
+        setWorkspaceModal({
+          isOpen: true,
+          projectId: data.data.project._id || data.data.project,
+          applicationId: data.data.application._id || data.data.application,
+          initialTab: specificTab // Pass the specific tab to open
+        });
+        
+        // Switch to active projects tab since workspace is opening
+        setActiveTab('projects');
+      } else {
+        toast.error('Workspace not found or access denied');
+      }
+    } catch (error) {
+      console.error('Error opening workspace:', error);
+      toast.error('Failed to open workspace');
+    }
+  };
 
   const handleTourEnd = () => {
     console.log('🎯 Tour ended');
@@ -469,6 +537,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
           <WorkspaceInterfaceFixed
             projectId={workspaceModal.projectId}
             applicationId={workspaceModal.applicationId}
+            initialTab={workspaceModal.initialTab}
             onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
           />
         </ErrorBoundary>

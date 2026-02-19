@@ -215,7 +215,7 @@ The WebSphere Team
  * @returns {string} - HTML email content
  */
 function generateWelcomeEmailHTML(user) {
-  const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/${user.role === 'freelancer' ? 'freelancer-profile-setup' : 'dashboard'}`;
+  const dashboardUrl = `${process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com'}/${user.role === 'freelancer' ? 'freelancer-profile-setup' : 'dashboard'}`;
   
   const content = `
     <h2>🎉 Welcome to WebSphere!</h2>
@@ -250,7 +250,7 @@ function generateWelcomeEmailHTML(user) {
       <p><strong>Ready to hire talent?</strong> Post your first project and connect with skilled freelancers who can help bring your ideas to life.</p>
     `}
     
-    <p>Need help getting started? Check out our <a href="${process.env.FRONTEND_URL || 'http://localhost:5174'}/help" style="color: #667eea;">help center</a> or contact our support team.</p>
+    <p>Need help getting started? Check out our <a href="${process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com'}/help" style="color: #667eea;">help center</a> or contact our support team.</p>
     
     <p>Welcome to the WebSphere community!</p>
     
@@ -266,7 +266,7 @@ function generateWelcomeEmailHTML(user) {
  * @returns {string} - Plain text email content
  */
 function generateWelcomeEmailText(user) {
-  const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/${user.role === 'freelancer' ? 'freelancer-profile-setup' : 'dashboard'}`;
+  const dashboardUrl = `${process.env.FRONTEND_URL || 'https://websphere-w8k6.onrender.com'}/${user.role === 'freelancer' ? 'freelancer-profile-setup' : 'dashboard'}`;
 
   return `
 Welcome to WebSphere!
