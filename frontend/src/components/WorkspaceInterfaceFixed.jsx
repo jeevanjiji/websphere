@@ -2323,6 +2323,21 @@ const MilestoneForm = ({ milestone, workspace, milestones, onSubmit, onClose }) 
       toast.error(`Amount exceeds remaining budget of ₹${remainingBudget.toLocaleString()}`);
       return;
     }
+
+    // Deadline validation
+    if (workspace?.project?.deadline) {
+      const projectDeadline = new Date(workspace.project.deadline);
+      if (new Date(formData.dueDate) > projectDeadline) {
+        toast.error(`Due date cannot exceed project deadline (${projectDeadline.toLocaleDateString()})`);
+        return;
+      }
+    }
+
+    // Payment due date should be after delivery due date
+    if (formData.paymentDueDate && formData.dueDate && new Date(formData.paymentDueDate) < new Date(formData.dueDate)) {
+      toast.error('Payment due date should be on or after delivery due date');
+      return;
+    }
     
     onSubmit(formData);
   };
@@ -2439,14 +2454,28 @@ const MilestoneForm = ({ milestone, workspace, milestones, onSubmit, onClose }) 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Due Date *
+              {workspace?.project?.deadline && (
+                <span className="text-xs text-gray-500 ml-2">
+                  (Project deadline: {new Date(workspace.project.deadline).toLocaleDateString()})
+                </span>
+              )}
             </label>
             <input
               type="date"
               value={formData.dueDate}
               onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min={new Date().toISOString().split('T')[0]}
+              max={workspace?.project?.deadline ? new Date(workspace.project.deadline).toISOString().split('T')[0] : undefined}
+              className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 ${
+                formData.dueDate && workspace?.project?.deadline && new Date(formData.dueDate) > new Date(workspace.project.deadline)
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
               required
             />
+            {formData.dueDate && workspace?.project?.deadline && new Date(formData.dueDate) > new Date(workspace.project.deadline) && (
+              <p className="text-red-600 text-xs mt-1">⚠ Due date cannot exceed project deadline</p>
+            )}
           </div>
 
           <div>
@@ -2457,8 +2486,13 @@ const MilestoneForm = ({ milestone, workspace, milestones, onSubmit, onClose }) 
               type="date"
               value={formData.paymentDueDate}
               onChange={(e) => setFormData({...formData, paymentDueDate: e.target.value})}
+              min={formData.dueDate || new Date().toISOString().split('T')[0]}
+              max={workspace?.project?.deadline ? (() => { const d = new Date(workspace.project.deadline); d.setDate(d.getDate() + 3); return d.toISOString().split('T')[0]; })() : undefined}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {formData.paymentDueDate && formData.dueDate && new Date(formData.paymentDueDate) < new Date(formData.dueDate) && (
+              <p className="text-red-600 text-xs mt-1">⚠ Payment due date should be on or after delivery due date</p>
+            )}
           </div>
 
           <div className="flex space-x-3">

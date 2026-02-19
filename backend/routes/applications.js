@@ -72,6 +72,18 @@ router.post('/', auth(['freelancer']), async (req, res) => {
       });
     }
 
+    // Validate proposed timeline doesn't exceed project deadline
+    if (project.deadline && proposedTimeline) {
+      const proposedDate = new Date(proposedTimeline);
+      const deadlineDate = new Date(project.deadline);
+      if (!isNaN(proposedDate.getTime()) && proposedDate > deadlineDate) {
+        return res.status(400).json({
+          success: false,
+          message: `Proposed completion date cannot exceed project deadline (${deadlineDate.toLocaleDateString()})`
+        });
+      }
+    }
+
     // Check if freelancer already applied
     const existingApplication = await Application.findOne({
       project: projectId,

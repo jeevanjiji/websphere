@@ -101,6 +101,17 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
       return;
     }
 
+    if (!formData.deadline) {
+      toast.error('Please set a project deadline');
+      return;
+    }
+
+    // Ensure deadline is in the future
+    if (new Date(formData.deadline) <= new Date()) {
+      toast.error('Deadline must be a future date');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -274,7 +285,7 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
           {/* Deadline */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              When do you need this completed?
+              When do you need this completed? *
             </label>
             <input
               type="date"
@@ -282,6 +293,7 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
               value={formData.deadline}
               onChange={handleInputChange}
               min={new Date().toISOString().split('T')[0]}
+              required
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>

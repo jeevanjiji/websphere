@@ -26,6 +26,16 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    // Validate timeline doesn't exceed project deadline
+    if (project?.deadline && formData.proposedTimeline) {
+      const proposedDate = new Date(formData.proposedTimeline);
+      const deadlineDate = new Date(project.deadline);
+      if (proposedDate > deadlineDate) {
+        toast.error(`Proposed completion date cannot exceed project deadline (${deadlineDate.toLocaleDateString()})`);
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -185,17 +195,31 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
             {/* Timeline */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Proposed Timeline *
+                Proposed Completion Date *
               </label>
               <input
-                type="text"
+                type="date"
                 name="proposedTimeline"
                 value={formData.proposedTimeline}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 2-3 weeks"
+                min={new Date().toISOString().split('T')[0]}
+                max={project?.deadline ? new Date(project.deadline).toISOString().split('T')[0] : undefined}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  formData.proposedTimeline && project?.deadline && new Date(formData.proposedTimeline) > new Date(project.deadline)
+                    ? 'border-red-400 bg-red-50'
+                    : 'border-gray-300'
+                }`}
               />
+              {formData.proposedTimeline && project?.deadline && new Date(formData.proposedTimeline) > new Date(project.deadline) ? (
+                <p className="text-sm text-red-600 mt-1 font-medium">
+                  ⚠ Must be on or before project deadline: {new Date(project.deadline).toLocaleDateString()}
+                </p>
+              ) : project?.deadline ? (
+                <p className="text-sm text-gray-500 mt-1">
+                  Project deadline: {new Date(project.deadline).toLocaleDateString()}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -261,7 +285,7 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
               type="submit"
               variant="primary"
               className="flex-1"
-              disabled={loading || !formData.coverLetter || !formData.proposedRate || !formData.proposedTimeline || (maxRate && parseFloat(formData.proposedRate) > maxRate)}
+              disabled={loading || !formData.coverLetter || !formData.proposedRate || !formData.proposedTimeline || (maxRate && parseFloat(formData.proposedRate) > maxRate) || (project?.deadline && formData.proposedTimeline && new Date(formData.proposedTimeline) > new Date(project.deadline))}
             >
               {loading ? 'Submitting...' : 'Submit Application'}
             </Button>

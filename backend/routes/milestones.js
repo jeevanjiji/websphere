@@ -106,6 +106,27 @@ router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAcce
       return res.status(404).json({ success: false, message: 'Workspace not found' });
     }
     const project = await Project.findById(workspace.project._id);
+
+    // Deadline validation: milestone dates must not exceed project deadline
+    if (project && project.deadline) {
+      const projectDeadline = new Date(project.deadline);
+      if (dueDate && new Date(dueDate) > projectDeadline) {
+        return res.status(400).json({
+          success: false,
+          message: `Milestone due date cannot exceed project deadline (${projectDeadline.toLocaleDateString()})`
+        });
+      }
+      // Allow payment due date up to 3 days after project deadline
+      const paymentDeadlineLimit = new Date(projectDeadline);
+      paymentDeadlineLimit.setDate(paymentDeadlineLimit.getDate() + 3);
+      if (calculatedPaymentDueDate && new Date(calculatedPaymentDueDate) > paymentDeadlineLimit) {
+        return res.status(400).json({
+          success: false,
+          message: `Payment due date cannot exceed ${paymentDeadlineLimit.toLocaleDateString()} (3 days after project deadline)`
+        });
+      }
+    }
+
     if (project && typeof project.budgetAmount === 'number' && project.budgetAmount > 0) {
       const existingMilestones = await Milestone.aggregate([
         {
@@ -258,10 +279,34 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
         }
       });
 
+      // Validate dueDate against project deadline when dueDate is updated without amount change
+      if (Object.prototype.hasOwnProperty.call(req.body, 'dueDate') && !Object.prototype.hasOwnProperty.call(req.body, 'amount')) {
+        const ws = await Workspace.findById(milestone.workspace).populate('project');
+        const proj = ws ? await Project.findById(ws.project._id) : null;
+        if (proj && proj.deadline && new Date(req.body.dueDate) > new Date(proj.deadline)) {
+          return res.status(400).json({
+            success: false,
+            message: `Milestone due date cannot exceed project deadline (${new Date(proj.deadline).toLocaleDateString()})`
+          });
+        }
+      }
+
       // If amount updated, enforce project budget cap
       if (Object.prototype.hasOwnProperty.call(req.body, 'amount')) {
         const ws = await Workspace.findById(milestone.workspace).populate('project');
         const proj = ws ? await Project.findById(ws.project._id) : null;
+
+        // Also validate dueDate against project deadline on update
+        if (proj && proj.deadline && req.body.dueDate) {
+          const projectDeadline = new Date(proj.deadline);
+          if (new Date(req.body.dueDate) > projectDeadline) {
+            return res.status(400).json({
+              success: false,
+              message: `Milestone due date cannot exceed project deadline (${projectDeadline.toLocaleDateString()})`
+            });
+          }
+        }
+
         if (proj && typeof proj.budgetAmount === 'number' && proj.budgetAmount > 0) {
           const sums = await Milestone.aggregate([
             {
