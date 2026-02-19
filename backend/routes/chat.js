@@ -643,11 +643,14 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
         application.proposedRate = agreedAmount;
         application.proposedTimeline = agreedTimeline;
         application.negotiatedAt = new Date();
+        // Auto-award the application
+        application.status = 'awarded';
+        application.respondedAt = new Date();
         await application.save();
-        console.log('✅ Application updated with negotiated rate:', agreedAmount);
+        console.log('✅ Application auto-awarded with negotiated rate:', agreedAmount);
       }
 
-      // Lock the agreed price on the project
+      // Lock the agreed price on the project AND auto-award it
       const project = await Project.findById(chat.project);
       if (project) {
         project.agreedPrice = agreedAmount;
@@ -655,6 +658,21 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
         project.budgetAmount = agreedAmount; // Overwrite budget so milestones & cards use it
         project.priceLockedAt = new Date();
         project.priceLockedBy = 'offer_accepted';
+        project.finalTimeline = agreedTimeline;
+
+        // Auto-award the project
+        if (project.status === 'open' || project.status === 'pending') {
+          project.status = 'awarded';
+          const freelancerParticipant = chat.participants.find(p => p.role === 'freelancer');
+          if (freelancerParticipant) {
+            project.awardedTo = freelancerParticipant.user;
+          }
+          if (application) {
+            project.awardedApplication = application._id;
+          }
+          project.awardedAt = new Date();
+          console.log('✅ Project auto-awarded via offer acceptance');
+        }
 
         // Record in negotiation history
         project.negotiationHistory.push({
@@ -675,8 +693,41 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
         await project.save();
         console.log('✅ Project agreedPrice locked at:', agreedAmount);
 
-        // Update existing pending milestones if any workspace exists
-        const workspace = await Workspace.findOne({ project: project._id });
+        // Reject all other pending applications for this project
+        if (application) {
+          await Application.updateMany(
+            {
+              project: project._id,
+              _id: { $ne: application._id },
+              status: { $in: ['pending', 'accepted'] }
+            },
+            { status: 'rejected' }
+          );
+          console.log('✅ Other applications rejected');
+        }
+
+        // Create workspace if it doesn't exist
+        const existingWorkspace = await Workspace.findOne({ project: project._id });
+        if (!existingWorkspace && application) {
+          try {
+            const freelancerParticipant = chat.participants.find(p => p.role === 'freelancer');
+            const clientParticipant = chat.participants.find(p => p.role === 'client');
+            const workspace = new Workspace({
+              project: project._id,
+              client: clientParticipant?.user,
+              freelancer: freelancerParticipant?.user,
+              application: application._id,
+              expectedEndDate: project.deadline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            });
+            await workspace.save();
+            console.log('✅ Workspace auto-created on offer acceptance:', workspace._id);
+          } catch (wsErr) {
+            console.error('⚠️ Workspace creation failed (non-blocking):', wsErr.message);
+          }
+        }
+
+        // Update existing pending milestones if workspace exists
+        const workspace = existingWorkspace || await Workspace.findOne({ project: project._id });
         if (workspace) {
           const pendingMilestones = await Milestone.find({
             workspace: workspace._id,
@@ -699,7 +750,7 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
       }
 
       // Decline any other pending offers in this chat
-      await Message.updateMany(
+      const declinedOffers = await Message.updateMany(
         {
           chat: message.chat._id,
           messageType: 'offer',
@@ -708,6 +759,7 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
         },
         { offerStatus: 'declined' }
       );
+      console.log(`✅ Auto-declined ${declinedOffers.modifiedCount} other pending offers`);
     } else if (action === 'decline' && message.offerDetails) {
       // Record declined offer in project negotiation history
       const Project = require('../models/Project');

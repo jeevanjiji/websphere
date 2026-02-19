@@ -141,7 +141,7 @@ router.post('/', auth(['client']), async (req, res) => {
     await workspace.save();
 
     // Populate the workspace for response
-    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt');
+    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt agreedPrice finalRate');
     await workspace.populate('client', 'fullName profilePicture email');
     await workspace.populate('freelancer', 'fullName profilePicture email skills');
     await workspace.populate('application', 'proposedRate coverLetter');
@@ -189,7 +189,7 @@ router.get('/project/:projectId', auth(['client', 'freelancer']), async (req, re
     console.log('🔍 Query:', JSON.stringify(query, null, 2));
 
     const workspace = await Workspace.findOne(query)
-    .populate('project', 'title description budgetAmount budgetType category categoryName deadline status createdAt')
+    .populate('project', 'title description budgetAmount budgetType category categoryName deadline status createdAt agreedPrice finalRate')
     .populate('client', 'fullName profilePicture email')
     .populate('freelancer', 'fullName profilePicture email skills')
     .populate('application', 'proposedRate coverLetter');
@@ -249,7 +249,7 @@ router.get('/:workspaceId', auth(['client', 'freelancer']), checkWorkspaceAccess
     const workspace = req.workspace;
     
     // Populate all related data
-    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt');
+    await workspace.populate('project', 'title description budgetAmount budgetType deadline status createdAt agreedPrice finalRate');
     await workspace.populate('client', 'fullName profilePicture email');
     await workspace.populate('freelancer', 'fullName profilePicture email skills');
     await workspace.populate('application', 'proposedRate coverLetter');

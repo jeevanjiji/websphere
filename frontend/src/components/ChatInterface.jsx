@@ -163,7 +163,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
   const handleSendOffer = (e) => {
     e.preventDefault();
     if (!offerDetails.proposedRate || !offerDetails.timeline) {
-      toast.error('Please fill in all required fields');
+      toast.error('Please fill in rate and completion date');
       return;
     }
 
@@ -180,13 +180,24 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     if (userRole === 'freelancer' && clientBudget) {
       const maxAllowed = clientBudget * 1.20;
       if (rate > maxAllowed) {
-        toast.error(`Your offer can\'t exceed \u20b9${maxAllowed.toLocaleString()} (20% above the project budget of \u20b9${clientBudget.toLocaleString()})`);
+        toast.error(`Your offer can't exceed \u20b9${maxAllowed.toLocaleString()} (20% above the project budget of \u20b9${clientBudget.toLocaleString()})`);
         return;
       }
     }
 
+    // Validate timeline date is not past project deadline
+    if (chat?.project?.deadline && offerDetails.timeline) {
+      const proposedDate = new Date(offerDetails.timeline);
+      const deadline = new Date(chat.project.deadline);
+      if (proposedDate > deadline) {
+        toast.error(`Completion date cannot exceed project deadline (${deadline.toLocaleDateString()})`);
+        return;
+      }
+    }
+
+    const timelineDisplay = new Date(offerDetails.timeline).toLocaleDateString();
     sendMessage({
-      content: `New offer: Rs.${offerDetails.proposedRate} - ${offerDetails.timeline}`,
+      content: `New offer: Rs.${offerDetails.proposedRate} - by ${timelineDisplay}`,
       messageType: 'offer',
       offerDetails: {
         proposedRate: rate,
@@ -225,12 +236,17 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
       const data = await response.json();
       if (data.success) {
         toast.success(`Offer ${action}ed successfully!`);
-        // Update the message in local state
-        setMessages(prev => prev.map(msg => 
-          msg._id === messageId 
-            ? { ...msg, offerStatus: action === 'accept' ? 'accepted' : 'declined' }
-            : msg
-        ));
+        // Update the message in local state AND auto-decline all other pending offers
+        setMessages(prev => prev.map(msg => {
+          if (msg._id === messageId) {
+            return { ...msg, offerStatus: action === 'accept' ? 'accepted' : 'declined' };
+          }
+          // If this offer was accepted, auto-decline all other pending offers
+          if (action === 'accept' && msg.messageType === 'offer' && msg.offerStatus === 'pending') {
+            return { ...msg, offerStatus: 'declined' };
+          }
+          return msg;
+        }));
         // Add the system message
         if (data.data.responseMessage) {
           setMessages(prev => [...prev, data.data.responseMessage]);
@@ -507,15 +523,25 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Timeline
+                    Completion Date
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     value={offerDetails.timeline}
                     onChange={(e) => setOfferDetails(prev => ({ ...prev, timeline: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., 2-3 weeks"
+                    min={new Date().toISOString().split('T')[0]}
+                    max={chat?.project?.deadline ? new Date(chat.project.deadline).toISOString().split('T')[0] : undefined}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      offerDetails.timeline && chat?.project?.deadline && new Date(offerDetails.timeline) > new Date(chat.project.deadline)
+                        ? 'border-red-400 bg-red-50'
+                        : 'border-gray-300'
+                    }`}
                   />
+                  {chat?.project?.deadline && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Deadline: {new Date(chat.project.deadline).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
@@ -597,7 +623,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
                           'text-blue-700'
                         }`}>
                           <div><strong>Rate:</strong> ₹{message.offerDetails?.proposedRate?.toLocaleString()}</div>
-                          <div><strong>Timeline:</strong> {message.offerDetails?.timeline}</div>
+                          <div><strong>Completion:</strong> {message.offerDetails?.timeline ? (() => { const d = new Date(message.offerDetails.timeline); return isNaN(d.getTime()) ? message.offerDetails.timeline : d.toLocaleDateString(); })() : 'N/A'}</div>
                           {message.offerDetails?.description && (
                             <div><strong>Terms:</strong> {message.offerDetails.description}</div>
                           )}

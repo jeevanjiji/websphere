@@ -328,9 +328,14 @@ router.put('/:applicationId/respond', auth(['client']), async (req, res) => {
       project.status = 'awarded';
       project.awardedTo = application.freelancer._id;
       project.awardedApplication = application._id;
-      project.finalRate = application.proposedRate;
+      // Use agreedPrice from negotiation if available, otherwise use application proposed rate
+      project.finalRate = project.agreedPrice || application.proposedRate;
       project.finalTimeline = application.proposedTimeline;
       project.awardedAt = new Date();
+      // If there's an agreed price, ensure budget stays consistent
+      if (project.agreedPrice) {
+        project.budgetAmount = project.agreedPrice;
+      }
       await project.save();
 
       // Reject all other applications for this project
@@ -473,9 +478,14 @@ router.put('/:applicationId/status', auth(['client']), async (req, res) => {
       project.status = 'awarded';
       project.awardedTo = application.freelancer._id;
       project.awardedApplication = application._id;
-      project.finalRate = application.proposedRate;
+      // Use agreedPrice from negotiation if available, otherwise use application proposed rate
+      project.finalRate = project.agreedPrice || application.proposedRate;
       project.finalTimeline = application.proposedTimeline;
       project.awardedAt = new Date();
+      // If there's an agreed price, ensure budget stays consistent
+      if (project.agreedPrice) {
+        project.budgetAmount = project.agreedPrice;
+      }
       await project.save();
 
       // Reject all other applications for this project
@@ -745,9 +755,14 @@ router.put('/:applicationId/award', auth(['client']), async (req, res) => {
     project.status = 'awarded';
     project.awardedTo = application.freelancer._id;
     project.awardedApplication = application._id;
-    project.finalRate = application.proposedRate;
+    // Use agreedPrice from negotiation if available, otherwise use application proposed rate
+    project.finalRate = project.agreedPrice || application.proposedRate;
     project.finalTimeline = application.proposedTimeline;
     project.awardedAt = new Date();
+    // If there's an agreed price, ensure budget stays consistent
+    if (project.agreedPrice) {
+      project.budgetAmount = project.agreedPrice;
+    }
     await project.save();
 
     // Reject all other applications for this project
