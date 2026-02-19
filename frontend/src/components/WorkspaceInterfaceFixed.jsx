@@ -2281,7 +2281,7 @@ const MilestoneForm = ({ milestone, workspace, milestones, onSubmit, onClose }) 
   });
 
   // Calculate budget information
-  const projectBudget = workspace?.project?.budgetAmount || 0;
+  const projectBudget = workspace?.project?.agreedPrice || workspace?.project?.finalRate || workspace?.project?.budgetAmount || 0;
   const totalExistingMilestones = milestones
     ?.filter(m => m.status !== 'rejected') // Exclude rejected milestones from budget calculation
     ?.filter(m => !milestone || m._id !== milestone._id) // Exclude current milestone if editing

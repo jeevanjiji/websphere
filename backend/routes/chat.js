@@ -61,7 +61,7 @@ router.get('/:chatId', auth(['client', 'freelancer']), async (req, res) => {
     const chat = await Chat.findById(chatId)
       .populate({
         path: 'project',
-        select: 'title description budgetAmount budgetType deadline status category categoryName',
+        select: 'title description budgetAmount budgetType deadline status category categoryName agreedPrice priceLockedAt finalRate',
         populate: {
           path: 'client',
           select: 'fullName profilePicture rating.average'
@@ -203,6 +203,36 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
         success: false,
         message: 'Cannot send messages to a closed chat'
       });
+    }
+
+    // --- Offer cap enforcement for freelancers ---
+    if (messageType === 'offer' && offerDetails?.proposedRate) {
+      const Project = require('../models/Project');
+      const project = await Project.findById(chat.project);
+
+      if (project?.agreedPrice) {
+        return res.status(400).json({
+          success: false,
+          message: `Price is already locked at ₹${project.agreedPrice.toLocaleString()}. No further offers allowed.`
+        });
+      }
+
+      // Determine sender role
+      const senderParticipant = chat.participants.find(
+        p => p.user.toString() === req.user.userId
+      );
+
+      if (senderParticipant?.role === 'freelancer' && project?.budgetAmount) {
+        const maxAllowed = project.budgetAmount * 1.20; // 20% above client budget
+        if (offerDetails.proposedRate > maxAllowed) {
+          return res.status(400).json({
+            success: false,
+            message: `Offer exceeds the allowed maximum of ₹${maxAllowed.toLocaleString()} (20% above project budget of ₹${project.budgetAmount.toLocaleString()}).`,
+            maxAllowed,
+            clientBudget: project.budgetAmount
+          });
+        }
+      }
     }
 
     // Create message
@@ -590,9 +620,12 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
     message.offerStatus = action === 'accept' ? 'accepted' : 'declined';
     await message.save();
 
-    // If accepted, update the application with new rate and timeline
+    // If accepted, lock in the agreed price across project, application, milestones
     if (action === 'accept' && message.offerDetails) {
       const Application = require('../models/Application');
+      const Project = require('../models/Project');
+      const Milestone = require('../models/Milestone');
+      const Workspace = require('../models/Workspace');
       
       // Find the application for this chat's project
       const application = await Application.findOne({
@@ -603,12 +636,93 @@ router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer'
         ]
       });
 
+      const agreedAmount = message.offerDetails.proposedRate;
+      const agreedTimeline = message.offerDetails.timeline;
+
       if (application) {
-        application.proposedRate = message.offerDetails.proposedRate;
-        application.proposedTimeline = message.offerDetails.timeline;
+        application.proposedRate = agreedAmount;
+        application.proposedTimeline = agreedTimeline;
         application.negotiatedAt = new Date();
         await application.save();
-        console.log('✅ Application updated with negotiated rate:', message.offerDetails.proposedRate);
+        console.log('✅ Application updated with negotiated rate:', agreedAmount);
+      }
+
+      // Lock the agreed price on the project
+      const project = await Project.findById(chat.project);
+      if (project) {
+        project.agreedPrice = agreedAmount;
+        project.finalRate = agreedAmount;
+        project.budgetAmount = agreedAmount; // Overwrite budget so milestones & cards use it
+        project.priceLockedAt = new Date();
+        project.priceLockedBy = 'offer_accepted';
+
+        // Record in negotiation history
+        project.negotiationHistory.push({
+          offeredBy: message.sender._id || message.sender,
+          offeredByRole: chat.participants.find(p => p.user.toString() === (message.sender._id || message.sender).toString())?.role,
+          amount: agreedAmount,
+          timeline: agreedTimeline,
+          status: 'accepted',
+          respondedBy: req.user.userId,
+          respondedAt: new Date()
+        });
+
+        // Recalculate service charges with the agreed price
+        const serviceChargePercentage = project.serviceChargePercentage || 5;
+        const fixedServiceCharge = project.serviceCharge || 35;
+        project.totalProjectValue = agreedAmount + Math.max(fixedServiceCharge, (agreedAmount * serviceChargePercentage) / 100);
+
+        await project.save();
+        console.log('✅ Project agreedPrice locked at:', agreedAmount);
+
+        // Update existing pending milestones if any workspace exists
+        const workspace = await Workspace.findOne({ project: project._id });
+        if (workspace) {
+          const pendingMilestones = await Milestone.find({
+            workspace: workspace._id,
+            status: { $in: ['pending', 'in-progress'] }
+          });
+
+          if (pendingMilestones.length > 0) {
+            // If total of pending milestones exceeds agreed price, scale them proportionally
+            const totalPending = pendingMilestones.reduce((s, m) => s + (m.amount || 0), 0);
+            if (totalPending > agreedAmount) {
+              const ratio = agreedAmount / totalPending;
+              for (const ms of pendingMilestones) {
+                ms.amount = Math.round(ms.amount * ratio);
+                await ms.save();
+              }
+              console.log('✅ Scaled pending milestones to fit agreed price');
+            }
+          }
+        }
+      }
+
+      // Decline any other pending offers in this chat
+      await Message.updateMany(
+        {
+          chat: message.chat._id,
+          messageType: 'offer',
+          offerStatus: 'pending',
+          _id: { $ne: message._id }
+        },
+        { offerStatus: 'declined' }
+      );
+    } else if (action === 'decline' && message.offerDetails) {
+      // Record declined offer in project negotiation history
+      const Project = require('../models/Project');
+      const project = await Project.findById(chat.project);
+      if (project) {
+        project.negotiationHistory.push({
+          offeredBy: message.sender._id || message.sender,
+          offeredByRole: chat.participants.find(p => p.user.toString() === (message.sender._id || message.sender).toString())?.role,
+          amount: message.offerDetails.proposedRate,
+          timeline: message.offerDetails.timeline,
+          status: 'declined',
+          respondedBy: req.user.userId,
+          respondedAt: new Date()
+        });
+        await project.save();
       }
     }
 

@@ -30,6 +30,8 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     description: ''
   });
   const [respondingToOffer, setRespondingToOffer] = useState(null);
+  const [priceLocked, setPriceLocked] = useState(false);
+  const [agreedPrice, setAgreedPrice] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -98,6 +100,11 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
       if (data.success) {
         setChat(data.chat);
         setMessages(data.messages);
+        // Track price lock state
+        if (data.chat?.project?.agreedPrice) {
+          setPriceLocked(true);
+          setAgreedPrice(data.chat.project.agreedPrice);
+        }
       } else {
         toast.error(data.message || 'Failed to load chat');
       }
@@ -160,11 +167,29 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
       return;
     }
 
+    if (priceLocked) {
+      toast.error(`Price is already locked at \u20b9${agreedPrice?.toLocaleString()}`);
+      return;
+    }
+
+    const rate = parseFloat(offerDetails.proposedRate);
+    const userRole = user?.role || user?.userType;
+    const clientBudget = chat?.project?.budgetAmount;
+
+    // Enforce freelancer cap: 20% above client's budget
+    if (userRole === 'freelancer' && clientBudget) {
+      const maxAllowed = clientBudget * 1.20;
+      if (rate > maxAllowed) {
+        toast.error(`Your offer can\'t exceed \u20b9${maxAllowed.toLocaleString()} (20% above the project budget of \u20b9${clientBudget.toLocaleString()})`);
+        return;
+      }
+    }
+
     sendMessage({
       content: `New offer: Rs.${offerDetails.proposedRate} - ${offerDetails.timeline}`,
       messageType: 'offer',
       offerDetails: {
-        proposedRate: parseFloat(offerDetails.proposedRate),
+        proposedRate: rate,
         timeline: offerDetails.timeline,
         description: offerDetails.description
       }
@@ -188,7 +213,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     setRespondingToOffer(messageId);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/respond-to-offer`, {
+      const response = await fetch(`${API_BASE_URL}/api/chats/messages/${messageId}/respond-to-offer`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -209,6 +234,11 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         // Add the system message
         if (data.data.responseMessage) {
           setMessages(prev => [...prev, data.data.responseMessage]);
+        }
+        // If accepted, lock the price locally
+        if (action === 'accept' && data.data.message?.offerDetails?.proposedRate) {
+          setPriceLocked(true);
+          setAgreedPrice(data.data.message.offerDetails.proposedRate);
         }
       } else {
         toast.error(data.message || `Failed to ${action} offer`);
@@ -392,7 +422,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
           </div>
           
           <div className="flex items-center gap-2">
-            {user?.role === 'client' && (
+            {!priceLocked && (
               <Button
                 variant="secondary"
                 size="small"
@@ -410,13 +440,25 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
           </div>
         </div>
 
-        {/* Project Info */}
+        {/* Project Info & Price Status */}
         {chat?.project && (
           <div className="p-4 bg-gray-50 border-b border-gray-200">
+            {/* Agreed Price Banner */}
+            {priceLocked && agreedPrice && (
+              <div className="mb-3 p-3 bg-green-50 border border-green-300 rounded-lg">
+                <div className="flex items-center gap-2 text-green-800 font-semibold text-sm">
+                  <span>🔒</span>
+                  <span>Price Agreed: ₹{agreedPrice.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-green-600 mt-1">
+                  Both parties have agreed on this price. It has been applied to the project, milestones, and payments.
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1">
                 <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
-                <span>Rs.{chat.project.budgetAmount} ({chat.project.budgetType})</span>
+                <span>Budget: ₹{(chat.project.agreedPrice || chat.project.budgetAmount)?.toLocaleString()} ({chat.project.budgetType})</span>
               </div>
               {chat.project.deadline && (
                 <div className="flex items-center gap-1">
@@ -438,6 +480,17 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
           <div className="p-4 bg-blue-50 border-b border-gray-200">
             <form onSubmit={handleSendOffer} className="space-y-3">
               <h4 className="font-medium text-gray-900">Make an Offer</h4>
+              {/* Budget context */}
+              {chat?.project?.budgetAmount && (
+                <div className="text-xs text-gray-600 bg-white rounded p-2 border border-blue-200">
+                  <span className="font-medium">Client Budget:</span> ₹{chat.project.budgetAmount.toLocaleString()}
+                  {user?.role === 'freelancer' && (
+                    <span className="ml-2 text-orange-600">
+                      • Max you can offer: ₹{Math.round(chat.project.budgetAmount * 1.2).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

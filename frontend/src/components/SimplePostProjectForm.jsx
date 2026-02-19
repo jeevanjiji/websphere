@@ -67,13 +67,6 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
     }
   ];
 
-  const budgetRanges = [
-    { value: '500-2000', label: 'Rs.500 - Rs.2,000 (Small project)' },
-    { value: '2000-10000', label: 'Rs.2,000 - Rs.10,000 (Medium project)' },
-    { value: '10000-50000', label: 'Rs.10,000 - Rs.50,000 (Large project)' },
-    { value: '50000+', label: 'Rs.50,000+ (Enterprise project)' }
-  ];
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -103,20 +96,18 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
       return;
     }
 
+    if (!formData.budgetAmount || Number(formData.budgetAmount) < 100) {
+      toast.error('Please set a budget of at least ₹100');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const token = localStorage.getItem('token');
       const projectFormData = new FormData();
       
-      // Set budget amount based on range selection
-      let budgetAmount = formData.budgetAmount;
-      if (formData.budgetAmount.includes('-')) {
-        const [min, max] = formData.budgetAmount.split('-');
-        budgetAmount = min; // Use minimum as the budget amount
-      } else if (formData.budgetAmount.includes('+')) {
-        budgetAmount = formData.budgetAmount.replace('+', ''); // Remove + sign
-      }
+      const budgetAmount = Number(formData.budgetAmount);
 
       projectFormData.append('title', formData.title);
       projectFormData.append('description', formData.description);
@@ -247,25 +238,37 @@ const SimplePostProjectForm = ({ onSuccess, onClose }) => {
           {/* Budget */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              What's your budget range? *
+              Set your project budget (Rs.) *
             </label>
-            <div className="space-y-2">
-              {budgetRanges.map((range) => (
-                <button
-                  key={range.value}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, budgetAmount: range.value }))}
-                  className={`w-full p-3 border-2 rounded-lg text-left transition-all ${
-                    formData.budgetAmount === range.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <CurrencyDollarIcon className="h-5 w-5 inline mr-2 text-gray-600" />
-                  {range.label}
-                </button>
-              ))}
+            <p className="text-xs text-gray-500 mb-3">
+              💡 Set a definite amount. Freelancers can negotiate up to 20% above this price during chat.
+            </p>
+            <div className="relative">
+              <CurrencyDollarIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="number"
+                name="budgetAmount"
+                value={formData.budgetAmount}
+                onChange={handleInputChange}
+                placeholder="e.g., 5000"
+                min="100"
+                step="100"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
             </div>
+            {formData.budgetAmount && (
+              <div className="mt-2 p-3 bg-blue-50 rounded-lg text-sm">
+                <div className="flex justify-between text-gray-700">
+                  <span>Your budget:</span>
+                  <span className="font-semibold">₹{Number(formData.budgetAmount).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-gray-500 text-xs mt-1">
+                  <span>Max freelancer can offer:</span>
+                  <span>₹{Math.round(Number(formData.budgetAmount) * 1.2).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Deadline */}

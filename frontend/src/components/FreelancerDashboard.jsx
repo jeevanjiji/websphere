@@ -354,9 +354,11 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   // Helper function to format project data for display
   const formatProject = (project) => {
     const timeAgo = new Date(project.createdAt).toLocaleDateString();
+    const displayAmount = project.agreedPrice || project.finalRate || project.budgetAmount;
+    const lockIcon = project.agreedPrice ? ' 🔒' : '';
     const budget = project.budgetType === 'fixed'
-      ? `Rs.${project.budgetAmount} (Fixed)`
-      : `Rs.${project.budgetAmount}/hr (Hourly)`;
+      ? `Rs.${displayAmount} (Fixed)${lockIcon}`
+      : `Rs.${displayAmount}/hr (Hourly)${lockIcon}`;
 
     return {
       ...project,
@@ -495,8 +497,9 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     <span className="flex items-center gap-1">
                       <CurrencyDollarIcon className="h-4 w-4" />
                       {project.budgetType === 'hourly' 
-                        ? `Rs.${project.budgetAmount}/hr` 
-                        : `Rs.${project.budgetAmount}`}
+                        ? `Rs.${project.agreedPrice || project.finalRate || project.budgetAmount}/hr` 
+                        : `Rs.${project.agreedPrice || project.finalRate || project.budgetAmount}`}
+                      {project.agreedPrice ? ' 🔒' : ''}
                     </span>
                     {project.deadline && (
                       <span className="flex items-center gap-1">

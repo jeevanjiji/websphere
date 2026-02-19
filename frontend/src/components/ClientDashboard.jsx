@@ -286,7 +286,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
             <div className="flex items-center justify-between text-sm text-gray-700 mb-2 flex-shrink-0 bg-gray-50 rounded-lg p-3">
               <div className="flex items-center gap-1">
                 <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
-                <span className="font-semibold">Rs.{project.budgetAmount}</span>
+                <span className="font-semibold">Rs.{project.agreedPrice || project.finalRate || project.budgetAmount}{project.agreedPrice ? ' 🔒' : ''}</span>
               </div>
               <div className="flex items-center gap-1">
                 <ClockIcon className="h-4 w-4 text-blue-600" />
@@ -395,7 +395,7 @@ const ClientDashboard = ({ showForm, setShowForm }) => {
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span className="flex items-center gap-1">
                 <CurrencyDollarIcon className="h-4 w-4" />
-                Rs.{selectedProject.budgetAmount} ({selectedProject.budgetType})
+                Rs.{selectedProject.agreedPrice || selectedProject.finalRate || selectedProject.budgetAmount} ({selectedProject.budgetType}){selectedProject.agreedPrice ? ' 🔒' : ''}
               </span>
               {getStatusBadge(selectedProject.status)}
             </div>

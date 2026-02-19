@@ -288,7 +288,8 @@ const ProjectManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
                         <CurrencyRupeeIcon className="h-4 w-4 text-gray-400 mr-1" />
-                        {formatCurrency(project.budgetAmount)}
+                        {formatCurrency(project.agreedPrice || project.finalRate || project.budgetAmount)}
+                        {project.agreedPrice && <span className="ml-1 text-xs text-green-600">🔒</span>}
                         <span className="ml-1 text-xs text-gray-500">
                           ({project.budgetType})
                         </span>

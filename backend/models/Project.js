@@ -104,6 +104,41 @@ const projectSchema = new mongoose.Schema(
       type: Date
     },
     
+    // Negotiation & agreed price
+    agreedPrice: {
+      type: Number,
+      min: 0
+    },
+    priceLockedAt: {
+      type: Date
+    },
+    priceLockedBy: {
+      type: String,
+      enum: ['offer_accepted', 'award', 'manual'],
+    },
+    negotiationHistory: [{
+      offeredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      offeredByRole: {
+        type: String,
+        enum: ['client', 'freelancer']
+      },
+      amount: Number,
+      timeline: String,
+      status: {
+        type: String,
+        enum: ['pending', 'accepted', 'declined']
+      },
+      respondedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      createdAt: { type: Date, default: Date.now },
+      respondedAt: Date
+    }],
+    
     // Service charges and platform fees
     serviceCharge: {
       type: Number,
