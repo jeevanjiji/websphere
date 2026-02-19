@@ -15,8 +15,17 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  const maxRate = project?.budgetAmount ? Math.round(project.budgetAmount * 1.2) : null;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate rate cap
+    if (maxRate && parseFloat(formData.proposedRate) > maxRate) {
+      toast.error(`Proposed rate cannot exceed ₹${maxRate.toLocaleString()} (120% of project budget)`);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -152,14 +161,25 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
                   onChange={handleInputChange}
                   required
                   min="1"
+                  max={maxRate || undefined}
                   step="0.01"
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    formData.proposedRate && maxRate && parseFloat(formData.proposedRate) > maxRate
+                      ? 'border-red-400 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="0.00"
                 />
               </div>
-              <p className="text-sm text-gray-500 mt-1">
-                Project budget: Rs.{project?.budgetAmount} ({project?.budgetType})
-              </p>
+              {formData.proposedRate && maxRate && parseFloat(formData.proposedRate) > maxRate ? (
+                <p className="text-sm text-red-600 mt-1 font-medium">
+                  ⚠ Max allowed: ₹{maxRate.toLocaleString()} (120% of budget ₹{project?.budgetAmount?.toLocaleString()})
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 mt-1">
+                  Project budget: Rs.{project?.budgetAmount} ({project?.budgetType}) · Max: ₹{maxRate?.toLocaleString()}
+                </p>
+              )}
             </div>
 
             {/* Timeline */}
@@ -241,7 +261,7 @@ const ProjectApplicationModal = ({ project, isOpen, onClose, onSuccess }) => {
               type="submit"
               variant="primary"
               className="flex-1"
-              disabled={loading || !formData.coverLetter || !formData.proposedRate || !formData.proposedTimeline}
+              disabled={loading || !formData.coverLetter || !formData.proposedRate || !formData.proposedTimeline || (maxRate && parseFloat(formData.proposedRate) > maxRate)}
             >
               {loading ? 'Submitting...' : 'Submit Application'}
             </Button>

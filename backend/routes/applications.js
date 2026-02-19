@@ -63,6 +63,15 @@ router.post('/', auth(['freelancer']), async (req, res) => {
       });
     }
 
+    // Validate proposed rate is not too high (max 120% of project budget)
+    const maxAllowedRate = project.budgetAmount * 1.20;
+    if (parseFloat(proposedRate) > maxAllowedRate) {
+      return res.status(400).json({
+        success: false,
+        message: `Proposed rate cannot exceed ₹${Math.round(maxAllowedRate).toLocaleString()} (120% of project budget ₹${project.budgetAmount.toLocaleString()})`
+      });
+    }
+
     // Check if freelancer already applied
     const existingApplication = await Application.findOne({
       project: projectId,
