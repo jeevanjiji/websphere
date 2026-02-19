@@ -57,6 +57,21 @@ const workspaceFileSchema = new mongoose.Schema({
     maxlength: 500
   },
   
+  // RAG: extracted text content for AI retrieval
+  extractedText: {
+    type: String,
+    default: null
+  },
+  extractedTextUpdatedAt: {
+    type: Date,
+    default: null
+  },
+  extractedTextSource: {
+    type: String,
+    enum: ['upload-buffer', 'manual', 'none'],
+    default: 'none'
+  },
+
   // Access control
   permissions: {
     client: {
@@ -156,6 +171,25 @@ workspaceFileSchema.index({ category: 1 });
 workspaceFileSchema.index({ folder: 1 });
 workspaceFileSchema.index({ status: 1 });
 workspaceFileSchema.index({ tags: 1 });
+
+// Full-text index for RAG retrieval
+workspaceFileSchema.index(
+  {
+    originalName: 'text',
+    description: 'text',
+    tags: 'text',
+    extractedText: 'text'
+  },
+  {
+    weights: {
+      originalName: 6,
+      tags: 4,
+      description: 3,
+      extractedText: 1
+    },
+    name: 'WorkspaceFileTextIndex'
+  }
+);
 
 // Virtual for download count
 workspaceFileSchema.virtual('downloadCount').get(function() {

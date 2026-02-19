@@ -311,7 +311,7 @@ const FreelancerMatchCard = ({ match, onSelect }) => {
           {freelancer.hourlyRate && (
             <div className="flex items-center text-sm text-gray-600">
               <CurrencyDollarIcon className="h-4 w-4 mr-1" />
-              ${freelancer.hourlyRate}/hr
+              Rs.{freelancer.hourlyRate}/hr
             </div>
           )}
         </div>

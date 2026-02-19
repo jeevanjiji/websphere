@@ -1,6 +1,8 @@
 const express = require('express');
 const User = require('../models/User');
 const { auth } = require('../middlewares/auth');
+const Workspace = require('../models/Workspace');
+const Escrow = require('../models/Escrow');
 const router = express.Router();
 
 // GET /api/freelancers/browse - Get freelancers for clients to browse
@@ -98,6 +100,47 @@ router.get('/browse', auth(['client']), async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching freelancers:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/freelancers/stats - Get freelancer statistics
+router.get('/stats', auth(['freelancer']), async (req, res) => {
+  console.log('🔥 GET FREELANCER STATS - User ID:', req.user.userId);
+  try {
+    const freelancerId = req.user.userId;
+
+    // Get total earnings from completed/released escrows
+    const escrows = await Escrow.find({
+      freelancer: freelancerId,
+      status: { $in: ['released', 'completed'] }
+    });
+
+    const totalEarnings = escrows.reduce((sum, escrow) => {
+      return sum + (escrow.amountToFreelancer || 0);
+    }, 0);
+
+    // Get completed projects count
+    const completedWorkspaces = await Workspace.countDocuments({
+      freelancer: freelancerId,
+      status: 'completed'
+    });
+
+    // Hours worked - you can implement time tracking later
+    // For now, using a placeholder
+    const hoursWorked = 0;
+
+    console.log('✅ Freelancer stats retrieved:', { totalEarnings, completedProjects: completedWorkspaces, hoursWorked });
+    res.json({
+      success: true,
+      stats: {
+        totalEarnings,
+        completedProjects: completedWorkspaces,
+        hoursWorked
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching freelancer stats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

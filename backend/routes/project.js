@@ -110,20 +110,33 @@ router.get('/my', auth(['client', 'freelancer']), async (req, res) => {
       // For clients: get projects they created with accepted application info
       projects = await Project.find({ client: req.user.userId }).sort('-createdAt');
       
-      // Add accepted application info for each project
+      // Add accepted application info and application count for each project
       for (let project of projects) {
         const acceptedApplication = await Application.findOne({ 
           project: project._id, 
           status: { $in: ['accepted', 'awarded'] }
         });
         
+        const applicationsCount = await Application.countDocuments({
+          project: project._id,
+          status: { $nin: ['withdrawn'] }
+        });
+        
         project._doc.hasAcceptedFreelancer = !!acceptedApplication;
         project._doc.acceptedApplicationId = acceptedApplication?._id;
+        project._doc.applicationsCount = applicationsCount;
       }
     } else if (req.user.role === 'freelancer') {
-      // For freelancers: get all projects for now (later we can filter by applied/awarded projects)
-      // For now, just return empty array or sample projects
-      projects = await Project.find({}).sort('-createdAt').limit(10);
+      // For freelancers: get projects they've been awarded
+      const awardedApplications = await Application.find({
+        freelancer: req.user.userId,
+        status: { $in: ['accepted', 'awarded'] }
+      }).select('project');
+      
+      const projectIds = awardedApplications.map(a => a.project);
+      projects = await Project.find({ _id: { $in: projectIds } })
+        .populate('client', 'fullName profilePicture rating.average')
+        .sort('-createdAt');
     }
 
     console.log('✅ Found', projects.length, 'projects for', req.user.role);

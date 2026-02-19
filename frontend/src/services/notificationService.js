@@ -65,7 +65,7 @@ class NotificationService {
       
       if (!subscription) {
         // Subscribe to push notifications
-        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BM8Z8R2V2Q3...';
+        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
         subscription = await this.registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: this.urlBase64ToUint8Array(vapidKey)

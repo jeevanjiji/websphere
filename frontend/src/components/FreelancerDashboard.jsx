@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
@@ -14,14 +13,10 @@ import {
 import { Button, Card, Badge } from './ui';
 import ProjectApplicationModal from './ProjectApplicationModal';
 import ChatInterface from './ChatInterface';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
-import WorkspaceInterface from './WorkspaceInterface';
 import WorkspaceInterfaceFixed from './WorkspaceInterfaceFixed';
-import DebugWorkspaceInterface from './DebugWorkspaceInterface';
 import { formatChatListTime } from '../utils/dateUtils';
 
 const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [internalActiveTab, setInternalActiveTab] = useState('browse');
   
   // Use external activeTab if provided, otherwise use internal state
@@ -67,6 +62,13 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(true);
 
+  // Stats state
+  const [stats, setStats] = useState({
+    totalEarnings: 0,
+    hoursWorked: 0,
+    completedProjects: 0
+  });
+
   // Get user from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -104,7 +106,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         params.append('showAllProjects', 'true');
       }
 
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PROJECTS.BROWSE}?${params}`, {
+      const response = await fetch(`http://localhost:5000/api/projects/browse?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -148,7 +150,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MATCHING.PROJECTS(userId)}?limit=10`, {
+      const response = await fetch(`http://localhost:5000/api/matching/projects/${userId}?limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -188,6 +190,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       fetchMyApplications();
     } else if (activeTab === 'messages') {
       fetchChats();
+    } else if (activeTab === 'earnings') {
+      fetchFreelancerStats();
     }
   }, [activeTab]);
 
@@ -198,70 +202,30 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     }
   }, [showAllProjects]);
 
-  // Handle opening workspace from URL parameters (for notification clicks)
-  useEffect(() => {
-    const openWorkspace = searchParams.get('openWorkspace');
-    const workspaceId = searchParams.get('workspaceId');
-    const tab = searchParams.get('tab');
-
-    if (openWorkspace === 'true' && workspaceId) {
-      // Find workspace by ID and open it
-      openWorkspaceFromId(workspaceId, tab);
-      
-      // Clear the URL parameters to avoid reopening on refresh
-      setSearchParams({});
-    }
-  }, [searchParams]);
-
-  // Function to open workspace by workspace ID
-  const openWorkspaceFromId = async (workspaceId, specificTab = null) => {
+  // Fetch freelancer stats
+  const fetchFreelancerStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Please log in to access workspace');
-        return;
-      }
+      if (!token) return;
 
-      // Fetch workspace details to get project and application IDs
-      console.log('🔍 Fetching workspace details for ID:', workspaceId);
-      
-      const response = await fetch(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
+      const response = await fetch('http://localhost:5000/api/freelancer/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
-      console.log('📊 Workspace API response status:', response.status);
-      
       const data = await response.json();
-      console.log('📋 Workspace API response data:', data);
-      
-      if (!response.ok) {
-        console.error('❌ Workspace API error:', response.status, data.message);
-        toast.error(data.message || 'Failed to load workspace');
-        return;
-      }
 
-      if (data.success && data.data) {
-        // Open the workspace modal with the correct IDs
-        console.log('✅ Opening workspace modal with data:', data.data);
-        setWorkspaceModal({
-          isOpen: true,
-          projectId: data.data.project._id || data.data.project,
-          applicationId: data.data.application._id || data.data.application,
-          initialTab: specificTab // Pass the specific tab to open
+      if (data.success) {
+        setStats({
+          totalEarnings: data.stats.totalEarnings || 0,
+          hoursWorked: data.stats.hoursWorked || 0,
+          completedProjects: data.stats.completedProjects || 0
         });
-        
-        // Switch to active projects tab since workspace is opening
-        setActiveTab('active');
-      } else {
-        console.error('❌ Workspace data not found in response:', data);
-        toast.error('Workspace not found or access denied');
       }
     } catch (error) {
-      console.error('❌ Failed to open workspace from ID:', error);
-      toast.error('Failed to open workspace: ' + error.message);
+      console.error('Error fetching freelancer stats:', error);
     }
   };
 
@@ -280,7 +244,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         limit: '10'
       });
 
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.APPLICATIONS.MY}?${params}`, {
+      const response = await fetch(`http://localhost:5000/api/applications/my?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -293,8 +257,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         setApplications(data.applications);
         setPagination(data.pagination);
         
-        // Check workspace availability for accepted applications
-        const acceptedApps = data.applications.filter(app => app.status === 'accepted');
+        // Check workspace availability for accepted/awarded applications
+        const acceptedApps = data.applications.filter(app => app.status === 'accepted' || app.status === 'awarded');
         const workspaceChecks = {};
         
         for (const app of acceptedApps) {
@@ -320,7 +284,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
       const token = localStorage.getItem('token');
       if (!token) return false;
 
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.WORKSPACES.PROJECT(projectId)}`, {
+      const response = await fetch(`http://localhost:5000/api/workspaces/project/${projectId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -344,7 +308,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.CHATS.BASE}?page=${page}&limit=10`, {
+      const response = await fetch(`http://localhost:5000/api/chats?page=${page}&limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -531,8 +495,8 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     <span className="flex items-center gap-1">
                       <CurrencyDollarIcon className="h-4 w-4" />
                       {project.budgetType === 'hourly' 
-                        ? `$${project.budgetAmount}/hr` 
-                        : `$${project.budgetAmount}`}
+                        ? `Rs.${project.budgetAmount}/hr` 
+                        : `Rs.${project.budgetAmount}`}
                     </span>
                     {project.deadline && (
                       <span className="flex items-center gap-1">
@@ -821,6 +785,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
             const statusConfig = {
               pending: { variant: 'warning', text: 'Pending Review' },
               accepted: { variant: 'success', text: 'Accepted' },
+              awarded: { variant: 'success', text: 'Awarded' },
               rejected: { variant: 'error', text: 'Rejected' },
               withdrawn: { variant: 'secondary', text: 'Withdrawn' }
             };
@@ -872,6 +837,21 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                     </div>
                   </div>
 
+                  {/* Start & Due dates for awarded/accepted applications */}
+                  {(application.status === 'accepted' || application.status === 'awarded') && application.project?.deadline && (
+                    <div className="flex items-center gap-3 text-xs mb-3 px-1">
+                      <span className="text-gray-500">
+                        Started: {new Date(application.project.awardedAt || application.createdAt).toLocaleDateString()}
+                      </span>
+                      <span className={`font-medium ${
+                        new Date(application.project.deadline) < new Date() ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        Due: {new Date(application.project.deadline).toLocaleDateString()}
+                        {new Date(application.project.deadline) < new Date() && ' (overdue)'}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
@@ -884,7 +864,7 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
                       </span>
                     </div>
                     
-                    {application.status === 'accepted' && (
+                    {(application.status === 'accepted' || application.status === 'awarded') && (
                       <div className="flex justify-end">
                         {/* Only show workspace button if workspace exists for this freelancer */}
                         {workspaceAvailability[application.project._id] && (
@@ -926,17 +906,17 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <CurrencyDollarIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Rs.0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Rs.{stats.totalEarnings.toLocaleString()}</h3>
         <p className="text-gray-600">Total Earnings</p>
       </div>
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <ClockIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">{stats.hoursWorked}</h3>
         <p className="text-gray-600">Hours Worked</p>
       </div>
       <div className="bg-white rounded-lg shadow-md p-6 text-center">
         <StarIcon className="h-12 w-12 text-accent mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">0</h3>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">{stats.completedProjects}</h3>
         <p className="text-gray-600">Completed Projects</p>
       </div>
     </div>
@@ -1095,7 +1075,6 @@ const FreelancerDashboard = ({ externalActiveTab, onTabChange }) => {
         <WorkspaceInterfaceFixed
           projectId={workspaceModal.projectId}
           applicationId={workspaceModal.applicationId}
-          initialTab={workspaceModal.initialTab}
           onClose={() => setWorkspaceModal({ isOpen: false, projectId: null, applicationId: null })}
         />
       )}

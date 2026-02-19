@@ -75,6 +75,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
     const statusConfig = {
       pending: { variant: 'warning', text: 'Pending Review', icon: ClockIcon },
       accepted: { variant: 'success', text: 'Accepted', icon: null },
+      awarded: { variant: 'success', text: 'Awarded', icon: null },
       rejected: { variant: 'error', text: 'Rejected', icon: ExclamationTriangleIcon },
       withdrawn: { variant: 'secondary', text: 'Withdrawn', icon: null }
     };
@@ -104,7 +105,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
   };
 
   const handleOpenChat = (application) => {
-    if (application.status === 'accepted' && onOpenChat) {
+    if ((application.status === 'accepted' || application.status === 'awarded') && onOpenChat) {
       onOpenChat(application);
     } else {
   toast('Chat is only available for accepted applications', { icon: '💬' });
@@ -133,11 +134,11 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
         </div>
 
         {/* Status Filter */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
             { key: 'all', label: 'All', count: applications.length },
             { key: 'pending', label: 'Pending', count: applications.filter(a => a.status === 'pending').length },
-            { key: 'accepted', label: 'Accepted', count: applications.filter(a => a.status === 'accepted').length },
+            { key: 'awarded', label: 'Awarded', count: applications.filter(a => a.status === 'awarded' || a.status === 'accepted').length },
             { key: 'rejected', label: 'Rejected', count: applications.filter(a => a.status === 'rejected').length }
           ].map((filterOption) => (
             <button
@@ -240,7 +241,7 @@ const FreelancerApplicationsList = ({ onOpenChat }) => {
                       View Project
                     </Button>
                     
-                    {application.status === 'accepted' && (
+                    {(application.status === 'accepted' || application.status === 'awarded') && (
                       <Button
                         variant="primary"
                         size="small"

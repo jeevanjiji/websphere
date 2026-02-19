@@ -322,7 +322,10 @@ router.post('/register', async (req, res) => {
       message: responseMessage,
       needsVerification: true,
       emailSent,
-      email: savedPendingUser.email // For display purposes only
+      email: savedPendingUser.email, // For display purposes only
+      devVerificationUrl: (!emailSent && process.env.NODE_ENV !== 'production')
+        ? `${process.env.BACKEND_URL || 'http://localhost:' + (process.env.PORT || 5000)}/api/auth/dev-verify/${savedPendingUser.email}`
+        : null
     });
 
   } catch (error) {

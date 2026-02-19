@@ -14,6 +14,8 @@ import { toast } from 'react-hot-toast';
 import { formatMessageTime } from '../utils/dateUtils';
 import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
 
+const MAX_MESSAGE_LENGTH = 10000;
+
 const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false }) => {
   const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
@@ -27,6 +29,7 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     timeline: '',
     description: ''
   });
+  const [respondingToOffer, setRespondingToOffer] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -51,11 +54,23 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         scrollToBottom();
       }
     };
+
+    const handleOfferResponse = (data) => {
+      console.log('📩 Offer response received:', data);
+      // Update the offer message status
+      setMessages(prev => prev.map(msg =>
+        msg._id === data.messageId
+          ? { ...msg, offerStatus: data.offerStatus }
+          : msg
+      ));
+    };
     
     socket.on('message-received', handleMessageReceived);
+    socket.on('offer-response', handleOfferResponse);
     
     return () => {
       socket.off('message-received', handleMessageReceived);
+      socket.off('offer-response', handleOfferResponse);
       socket.emit('leave-chat', chatId);
       console.log('🚪 Left chat room:', chatId);
     };
@@ -127,6 +142,10 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
+    if (newMessage.trim().length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Message is too long (${newMessage.trim().length} chars). Maximum is ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`);
+      return;
+    }
 
     sendMessage({
       content: newMessage.trim(),
@@ -161,6 +180,45 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
     if (!chat?.participants) return null;
     const currentUserId = user?.id || user?._id || user?.userId;
     return chat.participants.find(p => p.user._id !== currentUserId)?.user;
+  };
+
+  const handleRespondToOffer = async (messageId, action) => {
+    if (respondingToOffer === messageId) return;
+    
+    setRespondingToOffer(messageId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/chats/messages/${messageId}/respond-to-offer`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`Offer ${action}ed successfully!`);
+        // Update the message in local state
+        setMessages(prev => prev.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, offerStatus: action === 'accept' ? 'accepted' : 'declined' }
+            : msg
+        ));
+        // Add the system message
+        if (data.data.responseMessage) {
+          setMessages(prev => [...prev, data.data.responseMessage]);
+        }
+      } else {
+        toast.error(data.message || `Failed to ${action} offer`);
+      }
+    } catch (error) {
+      console.error('Error responding to offer:', error);
+      toast.error(`Failed to ${action} offer`);
+    } finally {
+      setRespondingToOffer(null);
+    }
   };
 
 
@@ -222,6 +280,25 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
                       ? 'bg-green-600 text-white' 
                       : 'bg-white border border-gray-200'
                   }`}>
+                    {/* AI Summary for freelancers viewing long client messages */}
+                    {!isMine && message.aiSummary && (user?.role === 'freelancer' || user?.userType === 'freelancer') && (
+                      <div className="mb-2 p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex items-center gap-1 text-xs font-semibold text-purple-700 mb-1">
+                          <span>🤖</span> AI Summary
+                        </div>
+                        <p className="text-xs text-purple-800 leading-relaxed">{message.aiSummary}</p>
+                        {message.aiActionItems?.length > 0 && (
+                          <div className="mt-1.5">
+                            <div className="text-xs font-semibold text-purple-700 mb-0.5">Action Items:</div>
+                            <ul className="list-disc list-inside text-xs text-purple-800 space-y-0.5">
+                              {message.aiActionItems.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <p className="text-sm">{message.content}</p>
                     
                     <div className={`text-xs mt-1 ${
@@ -241,13 +318,16 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         <div className="p-4 border-t border-gray-200">
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <div className="flex-1 relative">
-              <input
-                type="text"
+              <textarea
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
                 placeholder="Type your message..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                rows={1}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 resize-none overflow-hidden"
                 disabled={sending}
+                style={{ minHeight: '40px', maxHeight: '120px' }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
               />
               <button
                 type="button"
@@ -259,13 +339,18 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
             <Button
               type="submit"
               variant="primary"
-              disabled={!newMessage.trim() || sending}
+              disabled={!newMessage.trim() || sending || newMessage.trim().length > MAX_MESSAGE_LENGTH}
               className="flex items-center gap-2"
             >
               <PaperAirplaneIcon className="h-5 w-5" />
               {sending ? 'Sending...' : 'Send'}
             </Button>
           </form>
+          {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+            <p className={`text-xs mt-1 text-right ${newMessage.length > MAX_MESSAGE_LENGTH ? 'text-red-500 font-semibold' : 'text-yellow-600'}`}>
+              {newMessage.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()} characters
+            </p>
+          )}
         </div>
       </div>
     );
@@ -437,16 +522,83 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
                     }`}
                   >
                     {message.messageType === 'offer' && (
-                      <div className="mb-2 p-2 bg-green-100 rounded text-green-800 text-sm">
-                        <div className="font-medium">Offer Details:</div>
-                        <div>Rate: Rs.{message.offerDetails?.proposedRate}</div>
-                        <div>Timeline: {message.offerDetails?.timeline}</div>
-                        {message.offerDetails?.description && (
-                          <div>Terms: {message.offerDetails.description}</div>
+                      <div className={`mb-2 p-3 rounded ${
+                        message.offerStatus === 'accepted' ? 'bg-green-100 border border-green-300' :
+                        message.offerStatus === 'declined' ? 'bg-red-100 border border-red-300' :
+                        'bg-blue-50 border border-blue-200'
+                      }`}>
+                        <div className="font-semibold text-sm mb-1 flex items-center justify-between">
+                          <span className={
+                            message.offerStatus === 'accepted' ? 'text-green-800' :
+                            message.offerStatus === 'declined' ? 'text-red-800' :
+                            'text-blue-800'
+                          }>
+                            💼 {message.offerStatus === 'accepted' ? '✅ Offer Accepted' :
+                               message.offerStatus === 'declined' ? '❌ Offer Declined' :
+                               'Offer Details'}
+                          </span>
+                        </div>
+                        <div className={`text-sm space-y-1 ${
+                          message.offerStatus === 'accepted' ? 'text-green-700' :
+                          message.offerStatus === 'declined' ? 'text-red-700' :
+                          'text-blue-700'
+                        }`}>
+                          <div><strong>Rate:</strong> ₹{message.offerDetails?.proposedRate?.toLocaleString()}</div>
+                          <div><strong>Timeline:</strong> {message.offerDetails?.timeline}</div>
+                          {message.offerDetails?.description && (
+                            <div><strong>Terms:</strong> {message.offerDetails.description}</div>
+                          )}
+                        </div>
+                        
+                        {/* Accept/Decline Buttons - Only show if pending and not sender */}
+                        {message.offerStatus === 'pending' && !isMine && (
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => handleRespondToOffer(message._id, 'accept')}
+                              disabled={respondingToOffer === message._id}
+                              className="flex-1 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                            >
+                              {respondingToOffer === message._id ? 'Processing...' : '✓ Accept Offer'}
+                            </button>
+                            <button
+                              onClick={() => handleRespondToOffer(message._id, 'decline')}
+                              disabled={respondingToOffer === message._id}
+                              className="flex-1 px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
+                            >
+                              {respondingToOffer === message._id ? 'Processing...' : '✗ Decline'}
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Pending indicator for sender */}
+                        {message.offerStatus === 'pending' && isMine && (
+                          <div className="text-xs text-blue-600 mt-2 italic">
+                            ⏳ Awaiting response...
+                          </div>
                         )}
                       </div>
                     )}
                     
+                    {/* AI Summary for freelancers viewing long client messages */}
+                    {!isMine && message.aiSummary && (user?.role === 'freelancer' || user?.userType === 'freelancer') && (
+                      <div className="mb-2 p-2.5 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex items-center gap-1 text-xs font-semibold text-purple-700 mb-1">
+                          <span>🤖</span> AI Summary
+                        </div>
+                        <p className="text-xs text-purple-800 leading-relaxed">{message.aiSummary}</p>
+                        {message.aiActionItems?.length > 0 && (
+                          <div className="mt-1.5">
+                            <div className="text-xs font-semibold text-purple-700 mb-0.5">Action Items:</div>
+                            <ul className="list-disc list-inside text-xs text-purple-800 space-y-0.5">
+                              {message.aiActionItems.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <p className="text-sm">{message.content}</p>
                     
                     <div className={`text-xs mt-1 ${
@@ -466,13 +618,16 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
         <div className="p-4 border-t border-gray-200">
           <form onSubmit={handleSendMessage} className="flex gap-2">
             <div className="flex-1 relative">
-              <input
-                type="text"
+              <textarea
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
                 placeholder="Type your message..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                rows={1}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 resize-none overflow-hidden"
                 disabled={sending}
+                style={{ minHeight: '40px', maxHeight: '120px' }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
               />
               <button
                 type="button"
@@ -484,13 +639,18 @@ const ChatInterface = ({ chatId, isOpen, onClose, user, isWorkspaceChat = false 
             <Button
               type="submit"
               variant="primary"
-              disabled={!newMessage.trim() || sending}
+              disabled={!newMessage.trim() || sending || newMessage.trim().length > MAX_MESSAGE_LENGTH}
               className="flex items-center gap-2"
             >
               <PaperAirplaneIcon className="h-5 w-5" />
               {sending ? 'Sending...' : 'Send'}
             </Button>
           </form>
+          {newMessage.length > MAX_MESSAGE_LENGTH * 0.9 && (
+            <p className={`text-xs mt-1 text-right ${newMessage.length > MAX_MESSAGE_LENGTH ? 'text-red-500 font-semibold' : 'text-yellow-600'}`}>
+              {newMessage.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()} characters
+            </p>
+          )}
         </div>
       </motion.div>
     </div>

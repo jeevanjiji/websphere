@@ -442,9 +442,9 @@ const EscrowManagement = () => {
 
       {/* Escrow Details Modal */}
       {showDetails && selectedEscrow && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col" style={{maxHeight: 'calc(100vh - 2rem)'}}>
+            <div className="flex justify-between items-center p-6 border-b flex-shrink-0">
               <h2 className="text-xl font-bold">Escrow Details</h2>
               <button
                 onClick={() => setShowDetails(false)}
@@ -454,7 +454,7 @@ const EscrowManagement = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 p-6 overflow-y-auto flex-1">
               {/* Milestone Info */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Milestone Information</h3>
@@ -494,27 +494,53 @@ const EscrowManagement = () => {
                     {getStatusBadge(selectedEscrow.status)}
                   </div>
                   <div className="flex justify-between">
-                    <span>Deliverable Submitted:</span>
-                    <span className={
-                      (selectedEscrow.deliverableSubmitted || 
-                       selectedEscrow.deliverableSubmittedAt || 
-                       selectedEscrow.clientApprovalStatus === 'approved') 
-                      ? 'text-green-600' : 'text-red-600'
-                    }>
-                      {(selectedEscrow.deliverableSubmitted || 
-                        selectedEscrow.deliverableSubmittedAt || 
-                        selectedEscrow.clientApprovalStatus === 'approved') 
-                       ? 'Yes' : 'No'}
+                    <span>Ready for Release:</span>
+                    {(() => {
+                      const isReady = typeof selectedEscrow.isReadyForRelease === 'boolean'
+                        ? selectedEscrow.isReadyForRelease
+                        : (
+                            selectedEscrow.status === 'active' &&
+                            (selectedEscrow.deliverableSubmitted || selectedEscrow.deliverableSubmittedAt || selectedEscrow.isDeliverableSubmitted) &&
+                            (selectedEscrow.clientApprovalStatus === 'approved' || selectedEscrow.isApproved)
+                          );
+
+                      return (
+                        <span
+                          className={isReady ? 'text-green-600 font-semibold' : 'text-red-600'}
+                        >
+                          {isReady ? 'Yes ✓' : 'No'}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span className="ml-4">• Payment:</span>
+                    <span className={selectedEscrow.status === 'active' || selectedEscrow.status === 'released' ? 'text-green-600' : 'text-gray-500'}>
+                      {selectedEscrow.status === 'active' || selectedEscrow.status === 'released' ? '✓ Done' : '✗ Pending'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Client Approval:</span>
-                    <span className="capitalize">{selectedEscrow.clientApprovalStatus}</span>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span className="ml-4">• Deliverable:</span>
+                    <span className={selectedEscrow.isDeliverableSubmitted ? 'text-green-600' : 'text-gray-500'}>
+                      {selectedEscrow.isDeliverableSubmitted ? '✓ Submitted' : '✗ Not Submitted'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span className="ml-4">• Approval:</span>
+                    <span className={
+                      selectedEscrow.isApproved ? 'text-green-600' : 
+                      selectedEscrow.milestone?.status === 'rejected' ? 'text-red-600' : 
+                      'text-gray-500'
+                    }>
+                      {selectedEscrow.isApproved ? '✓ Approved' : 
+                       selectedEscrow.milestone?.status === 'rejected' ? '✗ Rejected' : 
+                       '○ Pending'}
+                    </span>
                   </div>
                   {selectedEscrow.disputeRaised && (
-                    <div className="flex justify-between">
+                    <div className="flex justify-between mt-2 pt-2 border-t">
                       <span>Dispute:</span>
-                      <span className="text-red-600">Active</span>
+                      <span className="text-red-600 font-medium">Active</span>
                     </div>
                   )}
                 </div>
@@ -548,31 +574,44 @@ const EscrowManagement = () => {
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Actions */}
-              <div className="flex gap-3">
-                {selectedEscrow.status === 'active' && 
-                 (selectedEscrow.deliverableSubmitted || 
-                  selectedEscrow.deliverableSubmittedAt || 
-                  selectedEscrow.clientApprovalStatus === 'approved') && 
-                 selectedEscrow.clientApprovalStatus === 'approved' && (
-                  <button
-                    onClick={() => setShowReleaseModal(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-                  >
-                    Release Funds
-                  </button>
-                )}
-                
-                {selectedEscrow.status === 'disputed' && (
-                  <button
-                    onClick={() => setShowDisputeModal(true)}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                  >
-                    Resolve Dispute
-                  </button>
-                )}
-              </div>
+            {/* Actions - Fixed at bottom */}
+            <div className="p-6 border-t flex gap-3 flex-shrink-0">
+              {(() => {
+                const isReady = typeof selectedEscrow.isReadyForRelease === 'boolean'
+                  ? selectedEscrow.isReadyForRelease
+                  : (
+                      selectedEscrow.status === 'active' &&
+                      (selectedEscrow.deliverableSubmitted || selectedEscrow.deliverableSubmittedAt || selectedEscrow.isDeliverableSubmitted) &&
+                      (selectedEscrow.clientApprovalStatus === 'approved' || selectedEscrow.isApproved)
+                    );
+
+                return isReady;
+              })() && (
+                <button
+                  onClick={() => setShowReleaseModal(true)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                >
+                  Release Funds
+                </button>
+              )}
+              
+              {selectedEscrow.status === 'disputed' && (
+                <button
+                  onClick={() => setShowDisputeModal(true)}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                >
+                  Resolve Dispute
+                </button>
+              )}
+              
+              <button
+                onClick={() => setShowDetails(false)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 ml-auto"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

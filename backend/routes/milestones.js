@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { auth } = require('../middlewares/auth');
 const { uploadWorkspaceFiles } = require('../middlewares/upload');
 
 const Milestone = require('../models/Milestone');
 const Workspace = require('../models/Workspace');
+const Project = require('../models/Project');
 const User = require('../models/User');
 const { sendEmail } = require('../utils/brevoEmailService');
 const milestoneTemplates = require('../utils/milestoneTemplates');
@@ -13,7 +15,7 @@ const milestoneTemplates = require('../utils/milestoneTemplates');
 const checkWorkspaceAccess = async (req, res, next) => {
   try {
     const { workspaceId } = req.params;
-    
+
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) {
       return res.status(404).json({
@@ -80,7 +82,8 @@ router.get('/:workspaceId/milestones', auth(['client', 'freelancer']), checkWork
 router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId } = req.params;
-    const { title, description, dueDate, paymentDueDate, amount, currency = 'INR', requirements } = req.body;
+    const { title, description, dueDate, paymentDueDate, currency = 'INR', requirements } = req.body;
+    const amount = Number(req.body.amount); // Convert to number to avoid string concatenation
 
     console.log('🔥 CREATE MILESTONE - Workspace:', workspaceId);
 
@@ -97,11 +100,43 @@ router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAcce
       calculatedPaymentDueDate = deliveryDate;
     }
 
-    // Calculate service charges
-    const serviceChargePercentage = req.body.serviceChargePercentage || 5; // 5% default
-    const serviceCharge = 35; // Fixed ₹35 per milestone
-    const totalAmountPaid = amount + serviceCharge;
-    const amountToFreelancer = amount;
+    // Budget cap validation: ensure sum of existing + new milestone amount <= project budget
+    const workspace = await Workspace.findById(workspaceId).populate('project');
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace not found' });
+    }
+    const project = await Project.findById(workspace.project._id);
+    if (project && typeof project.budgetAmount === 'number' && project.budgetAmount > 0) {
+      const existingMilestones = await Milestone.aggregate([
+        {
+          $match: {
+            workspace: new mongoose.Types.ObjectId(workspaceId),
+            status: { $ne: 'rejected' } // Exclude rejected milestones from budget calculation
+          }
+        },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      const currentTotal = existingMilestones[0]?.total || 0;
+      if ((currentTotal + amount) > project.budgetAmount) {
+        console.log('🛑 Budget cap exceeded on milestone update2')
+        return res.status(400).json({
+          success: false,
+          message: `Milestones total (₹${currentTotal + amount}) cannot exceed project budget (₹${project.budgetAmount}).`
+        });
+      }
+    }
+
+    // Calculate service charges based on project budget tier
+    const EscrowService = require('../services/escrowService');
+    const projectBudget = project?.budgetAmount || null;
+    const charges = EscrowService.calculateServiceCharges(amount, projectBudget, null);
+    
+    const serviceChargePercentage = charges.serviceChargePercentage;
+    const serviceCharge = charges.serviceCharge;
+    const totalAmountPaid = charges.totalAmount;
+    const amountToFreelancer = charges.amountToFreelancer;
+    
+    console.log(`💰 Service charge calculated: ${serviceChargePercentage}% (₹${serviceCharge}) for project budget ₹${projectBudget}`);
 
     const milestone = new Milestone({
       workspace: workspaceId,
@@ -111,7 +146,7 @@ router.post('/:workspaceId/milestones', auth(['freelancer']), checkWorkspaceAcce
       paymentDueDate: calculatedPaymentDueDate,
       amount,
       currency,
-      requirements: requirements ? requirements.map(req => 
+      requirements: requirements ? requirements.map(req =>
         typeof req === 'string' ? { description: req, isCompleted: false } : req
       ) : [],
       order,
@@ -153,9 +188,9 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
 
     console.log('🔥 UPDATE MILESTONE - ID:', milestoneId, 'Status:', status);
 
-    const milestone = await Milestone.findOne({ 
-      _id: milestoneId, 
-      workspace: req.params.workspaceId 
+    const milestone = await Milestone.findOne({
+      _id: milestoneId,
+      workspace: req.params.workspaceId
     });
 
     if (!milestone) {
@@ -172,22 +207,38 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
     if (isClient) {
       // Client can only approve/reject milestones, add review notes, and mark as paid
       const allowedUpdates = ['status', 'reviewNotes'];
-      
+
       Object.keys(req.body).forEach(key => {
         if (allowedUpdates.includes(key)) {
           milestone[key] = req.body[key];
         }
       });
 
+      // Ensure status is explicitly applied when provided
+      if (typeof status === 'string' && status.length > 0) {
+        milestone.status = status;
+      }
+
       if (status === 'approved') {
         milestone.approvedDate = new Date();
-        milestone.reviewedBy = req.user.id;
+        milestone.reviewedBy = req.user.userId || req.user.id;
+        // When client approves, mark deliveryStatus as delivered
+        if (milestone.deliveryStatus !== 'delivered') {
+          milestone.deliveryStatus = 'delivered';
+          milestone.submissionDate = milestone.submissionDate || new Date();
+        }
       } else if (status === 'rejected') {
-        milestone.reviewedBy = req.user.id;
+        milestone.reviewedBy = req.user.userId || req.user.id;
       } else if (status === 'paid') {
         milestone.paidDate = new Date();
         milestone.paymentStatus = 'completed';
       }
+      console.log('📝 Client milestone update', {
+        requestedStatus: status,
+        appliedStatus: milestone.status,
+        reviewNotes: milestone.reviewNotes,
+        reviewedBy: milestone.reviewedBy
+      });
     } else if (isFreelancer) {
       // Check if milestone is approved or paid (freelancer cannot edit these)
       if (milestone.status === 'approved' || milestone.status === 'paid' || milestone.status === 'payment-overdue') {
@@ -199,12 +250,40 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
 
       // Freelancer can update milestone details when not approved, plus status, notes, requirements
       const allowedUpdates = ['title', 'description', 'dueDate', 'amount', 'requirements', 'status', 'progressNotes', 'submissionNotes'];
-      
+
       Object.keys(req.body).forEach(key => {
         if (allowedUpdates.includes(key)) {
-          milestone[key] = req.body[key];
+          // Convert amount to number to avoid string concatenation issues
+          milestone[key] = key === 'amount' ? Number(req.body[key]) : req.body[key];
         }
       });
+
+      // If amount updated, enforce project budget cap
+      if (Object.prototype.hasOwnProperty.call(req.body, 'amount')) {
+        const ws = await Workspace.findById(milestone.workspace).populate('project');
+        const proj = ws ? await Project.findById(ws.project._id) : null;
+        if (proj && typeof proj.budgetAmount === 'number' && proj.budgetAmount > 0) {
+          const sums = await Milestone.aggregate([
+            {
+              $match: {
+                workspace: new mongoose.Types.ObjectId(String(milestone.workspace)),
+                _id: { $ne: milestone._id },
+                status: { $ne: 'rejected' } // Exclude rejected milestones from budget calculation
+              }
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]);
+          const otherTotal = sums[0]?.total || 0;
+          const proposedTotal = otherTotal + Number(milestone.amount || 0);
+          if (proposedTotal > proj.budgetAmount) {
+            console.log('🛑 Budget cap exceeded on milestone update1')
+            return res.status(400).json({
+              success: false,
+              message: `Milestones total (₹${proposedTotal}) cannot exceed project budget (₹${proj.budgetAmount}).`
+            });
+          }
+        }
+      }
 
       if (status === 'in-progress' || status === 'review') {
         milestone.status = status;
@@ -240,7 +319,27 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
 
     // Save without running full validation for status updates
     await milestone.save({ validateBeforeSave: false });
-    
+
+    // Update escrow if milestone was approved by client
+    if (isClient && status === 'approved') {
+      try {
+        const Escrow = require('../models/Escrow');
+        const escrow = await Escrow.findOne({ milestone: milestoneId });
+        if (escrow && escrow.status === 'active') {
+          // Set deliverableSubmitted to true when client approves
+          escrow.deliverableSubmitted = true;
+          escrow.deliverableSubmittedAt = escrow.deliverableSubmittedAt || new Date();
+          escrow.clientApprovalStatus = 'approved';
+          escrow.clientApprovedAt = new Date();
+          escrow.clientApprovedBy = req.user.userId || req.user.id;
+          await escrow.save();
+          console.log('✅ Escrow updated: deliverableSubmitted set to true');
+        }
+      } catch (escrowError) {
+        console.warn('⚠️ Escrow update failed (non-critical):', escrowError.message);
+      }
+    }
+
     await milestone.populate('createdBy reviewedBy submittedBy', 'fullName profilePicture email');
 
     console.log('✅ Milestone updated successfully');
@@ -260,9 +359,9 @@ router.put('/:workspaceId/milestones/:milestoneId', auth(['client', 'freelancer'
 });
 
 // PUT /api/workspaces/:workspaceId/milestones/:milestoneId/requirements/:requirementIndex - Update specific requirement
-router.put('/:workspaceId/milestones/:milestoneId/requirements/:requirementIndex', 
-  auth(['freelancer']), 
-  checkWorkspaceAccess, 
+router.put('/:workspaceId/milestones/:milestoneId/requirements/:requirementIndex',
+  auth(['freelancer']),
+  checkWorkspaceAccess,
   async (req, res) => {
     try {
       const { milestoneId, requirementIndex } = req.params;
@@ -270,9 +369,9 @@ router.put('/:workspaceId/milestones/:milestoneId/requirements/:requirementIndex
 
       console.log('🔥 UPDATE REQUIREMENT - Milestone:', milestoneId, 'Index:', requirementIndex);
 
-      const milestone = await Milestone.findOne({ 
-        _id: milestoneId, 
-        workspace: req.params.workspaceId 
+      const milestone = await Milestone.findOne({
+        _id: milestoneId,
+        workspace: req.params.workspaceId
       });
 
       if (!milestone) {
@@ -337,9 +436,9 @@ router.put('/:workspaceId/milestones/:milestoneId/attachments',
         });
       }
 
-      const milestone = await Milestone.findOne({ 
-        _id: milestoneId, 
-        workspace: req.params.workspaceId 
+      const milestone = await Milestone.findOne({
+        _id: milestoneId,
+        workspace: req.params.workspaceId
       });
 
       if (!milestone) {
@@ -458,6 +557,34 @@ router.post('/:workspaceId/milestones/bulk', auth(['freelancer']), checkWorkspac
 
     const createdMilestones = [];
 
+    // Budget cap validation for bulk create
+    const ws = await Workspace.findById(workspaceId).populate('project');
+    if (!ws) {
+      return res.status(404).json({ success: false, message: 'Workspace not found' });
+    }
+    const proj = await Project.findById(ws.project._id);
+    if (proj && typeof proj.budgetAmount === 'number' && proj.budgetAmount > 0) {
+      const existing = await Milestone.aggregate([
+        {
+          $match: {
+            workspace: new mongoose.Types.ObjectId(workspaceId),
+            status: { $ne: 'rejected' } // Exclude rejected milestones from budget calculation
+          }
+        },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      const current = existing[0]?.total || 0;
+      const incoming = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+      if (current + incoming > proj.budgetAmount) {
+        console.log('🛑 Budget cap exceeded on milestone update1')
+
+        return res.status(400).json({
+          success: false,
+          message: `Milestones total (₹${current + incoming}) cannot exceed project budget (₹${proj.budgetAmount}).`
+        });
+      }
+    }
+
     for (const milestoneData of milestones) {
       const milestone = new Milestone({
         workspace: workspaceId,
@@ -469,9 +596,9 @@ router.post('/:workspaceId/milestones/bulk', auth(['freelancer']), checkWorkspac
           deliveryDate.setDate(deliveryDate.getDate() + 3);
           return deliveryDate;
         })(),
-        amount: milestoneData.amount,
+        amount: Number(milestoneData.amount), // Convert to number to avoid string issues
         currency: milestoneData.currency || 'INR',
-        requirements: milestoneData.requirements.map(req => 
+        requirements: milestoneData.requirements.map(req =>
           typeof req === 'string' ? { description: req, isCompleted: false } : req
         ) || [],
         order: nextOrder++,
@@ -507,9 +634,9 @@ router.post('/:workspaceId/milestones/:milestoneId/request-extension', auth(['fr
     const { milestoneId } = req.params;
     const { extensionDays, reason } = req.body;
 
-    const milestone = await Milestone.findOne({ 
-      _id: milestoneId, 
-      workspace: req.params.workspaceId 
+    const milestone = await Milestone.findOne({
+      _id: milestoneId,
+      workspace: req.params.workspaceId
     }).populate('workspace');
 
     if (!milestone) {
@@ -581,9 +708,9 @@ router.put('/:workspaceId/milestones/:milestoneId/extension-response', auth(['cl
     const { milestoneId } = req.params;
     const { approved, responseNotes } = req.body;
 
-    const milestone = await Milestone.findOne({ 
-      _id: milestoneId, 
-      workspace: req.params.workspaceId 
+    const milestone = await Milestone.findOne({
+      _id: milestoneId,
+      workspace: req.params.workspaceId
     }).populate('workspace');
 
     if (!milestone) {
@@ -601,18 +728,18 @@ router.put('/:workspaceId/milestones/:milestoneId/extension-response', auth(['cl
     }
 
     milestone.extensionApproved = approved;
-    
+
     if (approved) {
       // Extend the due date
       const newDueDate = new Date(milestone.dueDate);
       newDueDate.setDate(newDueDate.getDate() + milestone.autoExtensionDays);
       milestone.dueDate = newDueDate;
-      
+
       // Update payment due date accordingly
       const newPaymentDueDate = new Date(newDueDate);
       newPaymentDueDate.setDate(newPaymentDueDate.getDate() + 3);
       milestone.paymentDueDate = newPaymentDueDate;
-      
+
       milestone.deliveryStatus = 'on-time'; // Reset status
       milestone.isOverdue = false;
     }

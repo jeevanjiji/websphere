@@ -2,6 +2,7 @@ const express = require('express');
 const { Chat, Message } = require('../models/Chat');
 const Application = require('../models/Application');
 const { auth } = require('../middlewares/auth');
+const { shouldSummarize, summarizeMessage } = require('../services/chatSummarizer');
 const router = express.Router();
 
 // GET /api/chats - Get user's chats
@@ -170,6 +171,13 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
       });
     }
 
+    if (content && content.length > 10000) {
+      return res.status(400).json({
+        success: false,
+        message: `Message is too long (${content.length} characters). Maximum allowed is 10,000 characters.`
+      });
+    }
+
     // Verify chat exists and user is participant
     const chat = await Chat.findById(chatId);
     if (!chat) {
@@ -205,6 +213,7 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
       messageType,
       attachments,
       offerDetails,
+      offerStatus: messageType === 'offer' ? 'pending' : undefined,
       readBy: [{
         user: req.user.userId,
         readAt: new Date()
@@ -212,6 +221,35 @@ router.post('/:chatId/messages', auth(['client', 'freelancer']), async (req, res
     });
 
     await message.save();
+
+    // --- AI summarization for long client messages (non-blocking) ---
+    if (messageType === 'text' && shouldSummarize(content)) {
+      try {
+        // Figure out project title for better context
+        const chatWithProject = await Chat.findById(chatId).populate('project', 'title').lean();
+        const projectTitle = chatWithProject?.project?.title || '';
+
+        // Determine sender role (is the sender a client?)
+        const senderParticipant = chat.participants.find(
+          p => p.user.toString() === req.user.userId
+        );
+        const isClientSender = senderParticipant?.role === 'client';
+
+        if (isClientSender) {
+          const result = await summarizeMessage(content, projectTitle);
+          if (result) {
+            message.aiSummary = result.summary;
+            message.aiActionItems = result.actionItems;
+            message.aiGeneratedAt = new Date();
+            message.aiModel = 'llama-3.3-70b-versatile';
+            await message.save();
+            console.log('🤖 AI summary attached to message', message._id);
+          }
+        }
+      } catch (aiErr) {
+        console.warn('⚠️ AI summarization failed (non-blocking):', aiErr.message);
+      }
+    }
 
     // Populate sender info
     await message.populate({
@@ -482,6 +520,142 @@ router.post('/application/:applicationId', auth(['client', 'freelancer']), async
     res.status(500).json({
       success: false,
       message: 'Failed to create chat',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/chats/messages/:messageId/respond-to-offer - Accept or decline an offer
+router.put('/messages/:messageId/respond-to-offer', auth(['client', 'freelancer']), async (req, res) => {
+  console.log('🔥 RESPOND TO OFFER - Message ID:', req.params.messageId);
+  try {
+    const { messageId } = req.params;
+    const { action } = req.body; // 'accept' or 'decline'
+
+    if (!action || !['accept', 'decline'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Must be "accept" or "decline"'
+      });
+    }
+
+    // Find the offer message
+    const message = await Message.findById(messageId)
+      .populate('chat')
+      .populate('sender', 'fullName');
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    if (message.messageType !== 'offer') {
+      return res.status(400).json({
+        success: false,
+        message: 'This message is not an offer'
+      });
+    }
+
+    if (message.offerStatus !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `This offer has already been ${message.offerStatus}`
+      });
+    }
+
+    // Verify user is participant in this chat
+    const chat = await Chat.findById(message.chat._id);
+    const isParticipant = chat.participants.some(
+      p => p.user.toString() === req.user.userId
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Only the person who didn't send the offer can accept/decline it
+    if (message.sender._id.toString() === req.user.userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot respond to your own offer'
+      });
+    }
+
+    // Update offer status
+    message.offerStatus = action === 'accept' ? 'accepted' : 'declined';
+    await message.save();
+
+    // If accepted, update the application with new rate and timeline
+    if (action === 'accept' && message.offerDetails) {
+      const Application = require('../models/Application');
+      
+      // Find the application for this chat's project
+      const application = await Application.findOne({
+        project: chat.project,
+        $or: [
+          { freelancer: chat.participants[0].user },
+          { freelancer: chat.participants[1].user }
+        ]
+      });
+
+      if (application) {
+        application.proposedRate = message.offerDetails.proposedRate;
+        application.proposedTimeline = message.offerDetails.timeline;
+        application.negotiatedAt = new Date();
+        await application.save();
+        console.log('✅ Application updated with negotiated rate:', message.offerDetails.proposedRate);
+      }
+    }
+
+    // Send a system message about the response
+    const responseMessage = new Message({
+      chat: message.chat._id,
+      sender: req.user.userId,
+      content: action === 'accept' 
+        ? `✅ Offer accepted: Rs.${message.offerDetails.proposedRate} - ${message.offerDetails.timeline}`
+        : `❌ Offer declined`,
+      messageType: 'system',
+      readBy: [{
+        user: req.user.userId,
+        readAt: new Date()
+      }]
+    });
+    await responseMessage.save();
+    await responseMessage.populate('sender', 'fullName');
+
+    // Emit real-time events
+    const io = req.app.get('io');
+    if (io) {
+      io.to(message.chat._id.toString()).emit('offer-response', {
+        messageId: message._id,
+        offerStatus: message.offerStatus,
+        responseMessage: responseMessage.toObject()
+      });
+      io.to(message.chat._id.toString()).emit('message-received', {
+        chatId: message.chat._id,
+        message: responseMessage.toObject()
+      });
+    }
+
+    console.log(`✅ Offer ${action}ed successfully`);
+    res.json({
+      success: true,
+      message: `Offer ${action}ed successfully`,
+      data: {
+        message: message.toObject(),
+        responseMessage: responseMessage.toObject()
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error responding to offer:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to respond to offer',
       error: error.message
     });
   }

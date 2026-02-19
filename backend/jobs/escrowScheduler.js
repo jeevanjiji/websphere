@@ -5,16 +5,13 @@ class EscrowScheduler {
   static start() {
     console.log('🤖 Starting escrow scheduler...');
 
-    // Run every hour to check for auto-releases
-    cron.schedule('0 * * * *', async () => {
+    // Run every 5 minutes to check for auto-releases (catches approved deliverables quickly)
+    cron.schedule('*/5 * * * *', async () => {
       try {
-        console.log('🔄 Running scheduled escrow auto-release check...');
         const releasedCount = await EscrowService.processAutoReleases();
         
         if (releasedCount > 0) {
           console.log(`✅ Auto-released ${releasedCount} escrows`);
-        } else {
-          console.log('📊 No escrows eligible for auto-release');
         }
       } catch (error) {
         console.error('❌ Error in escrow auto-release scheduler:', error);

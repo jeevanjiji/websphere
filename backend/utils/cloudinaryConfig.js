@@ -25,40 +25,51 @@ const validateCloudinaryConfig = () => {
   return true;
 };
 
-// Upload image to Cloudinary
+// Upload file to Cloudinary
 const uploadToCloudinary = async (fileBuffer, options = {}) => {
   try {
-    const {
-      folder = 'websphere',
-      transformation = {},
-      resourceType = 'image',
-      format = 'auto',
-      quality = 'auto'
-    } = options;
+    const folder = options.folder || 'websphere';
+    const resourceType = options.resource_type || options.resourceType || 'image';
+    const transformation = options.transformation || {};
+    const format = options.format;
+    const quality = options.quality;
+
+    // Avoid forcing image-only defaults for non-image uploads.
+    const isImageLike = resourceType === 'image' || resourceType === 'video';
+
+    // Build upload options explicitly to avoid conflicting keys.
+    const uploadOptions = {
+      ...options,
+      folder,
+      resource_type: resourceType
+    };
+
+    // Only include transformation/format/quality when appropriate.
+    if (isImageLike) {
+      uploadOptions.transformation = {
+        fetch_format: 'auto',
+        quality: 'auto',
+        ...transformation
+      };
+
+      if (format) uploadOptions.format = format;
+      if (quality) uploadOptions.quality = quality;
+    } else {
+      // For raw/auto uploads (PDF/DOC/ZIP/etc), Cloudinary may reject image-specific params.
+      delete uploadOptions.transformation;
+      delete uploadOptions.format;
+      delete uploadOptions.quality;
+    }
 
     return new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder,
-          resource_type: resourceType,
-          format,
-          quality,
-          transformation: {
-            fetch_format: 'auto',
-            quality: 'auto',
-            ...transformation
-          },
-          ...options
-        },
-        (error, result) => {
-          if (error) {
-            console.error('Cloudinary upload error:', error);
-            reject(error);
-          } else {
-            resolve(result);
-          }
+      cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) {
+          console.error('Cloudinary upload error:', error);
+          reject(error);
+        } else {
+          resolve(result);
         }
-      ).end(fileBuffer);
+      }).end(fileBuffer);
     });
   } catch (error) {
     console.error('Cloudinary upload error:', error);
